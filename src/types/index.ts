@@ -16,6 +16,18 @@ export interface User {
   passwordLastChanged?: string;
   loginAttempts?: number;
   lockedUntil?: string;
+  // Shift Management
+  currentShift?: {
+    isOnShift: boolean;
+    shiftStart: string; // HH:MM format
+    shiftEnd: string; // HH:MM format
+    shiftType: 'day' | 'evening' | 'night';
+    clockedInAt?: string; // ISO timestamp
+    clockedOutAt?: string; // ISO timestamp
+    breakStart?: string; // ISO timestamp
+    breakEnd?: string; // ISO timestamp
+    location?: string; // Work location/department
+  };
 }
 
 export interface Currency {
@@ -103,6 +115,12 @@ export interface Room {
   smokingAllowed?: boolean; // New field for smoking/non-smoking
   lastCleaned?: string;
   maintenanceNotes?: string;
+  // VIP Room Features
+  isVipRoom?: boolean; // Designates if this is a VIP-only room
+  vipAmenities?: string[]; // Special VIP amenities
+  vipRate?: number; // Special VIP pricing (optional override)
+  vipMinimumStay?: number; // Minimum nights for VIP bookings
+  vipServices?: string[]; // Included VIP services
 }
 
 export interface Guest {
@@ -147,6 +165,19 @@ export interface Guest {
     phone: string;
     email?: string;
   };
+  // VIP Guest Features
+  vipTier?: 'gold' | 'platinum' | 'diamond'; // VIP membership tiers
+  vipSince?: string; // Date when VIP status was granted
+  vipBenefits?: string[]; // List of VIP benefits
+  personalConcierge?: string; // Assigned concierge ID
+  vipPreferences?: {
+    preferredRoomType?: string;
+    preferredFloor?: number;
+    preferredAmenities?: string[];
+    specialServices?: string[];
+    dietaryRequirements?: string[];
+    communicationPreference?: 'email' | 'phone' | 'sms';
+  };
 }
 
 export interface Booking {
@@ -179,6 +210,12 @@ export interface Booking {
   roomUpgrade?: boolean;
   compStatus?: 'none' | 'partial' | 'full';
   invoiceGenerated?: boolean;
+  // VIP Booking Features
+  isVipBooking?: boolean; // Indicates if this is a VIP booking
+  vipServices?: string[]; // VIP services included in booking
+  vipUpgrades?: string[]; // Complimentary upgrades provided
+  priorityCheckin?: boolean; // Skip regular check-in queue
+  personalizedWelcome?: string; // Custom welcome message/setup
 }
 
 export interface RoomCharge {

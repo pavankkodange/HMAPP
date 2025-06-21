@@ -14,15 +14,6 @@ export function VervConnectLogo({ size = 'md', animated = true, className = '' }
     xl: 'w-24 h-24'
   };
 
-  const sizeValues = {
-    sm: 32,
-    md: 48,
-    lg: 64,
-    xl: 96
-  };
-
-  const logoSize = sizeValues[size];
-
   return (
     <>
       {animated && (
@@ -34,28 +25,47 @@ export function VervConnectLogo({ size = 'md', animated = true, className = '' }
           
           @keyframes vervLogoPulse {
             0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.9; transform: scale(1.02); }
+            50% { opacity: 0.95; transform: scale(1.02); }
           }
           
           @keyframes vervLogoGlow {
-            0%, 100% { filter: drop-shadow(0 0 8px rgba(14, 165, 233, 0.3)); }
-            25% { filter: drop-shadow(0 0 12px rgba(71, 85, 105, 0.4)); }
-            50% { filter: drop-shadow(0 0 10px rgba(14, 165, 233, 0.3)); }
-            75% { filter: drop-shadow(0 0 14px rgba(71, 85, 105, 0.4)); }
+            0%, 100% { filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.3)); }
+            25% { filter: drop-shadow(0 0 12px rgba(99, 102, 241, 0.4)); }
+            50% { filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.3)); }
+            75% { filter: drop-shadow(0 0 14px rgba(99, 102, 241, 0.4)); }
           }
           
-          .verv-logo-container:hover svg {
+          .verv-logo-container:hover img {
             animation-duration: 1s;
           }
         `}</style>
       )}
       
       <div className={`verv-logo-container ${sizeClasses[size]} ${className} flex items-center justify-center`}>
+        <img
+          src="/Only Logo for Hotel copy copy copy.png"
+          alt="VervConnect Logo"
+          className={`${sizeClasses[size]} object-contain rounded-lg`}
+          style={{ 
+            animation: animated ? 'vervLogoFloat 3s ease-in-out infinite, vervLogoPulse 4s ease-in-out infinite, vervLogoGlow 5s ease-in-out infinite' : 'none'
+          }}
+          onError={(e) => {
+            // Fallback to SVG if image fails to load
+            const target = e.target as HTMLImageElement;
+            target.style.display = 'none';
+            const fallbackSvg = target.nextElementSibling as HTMLElement;
+            if (fallbackSvg) {
+              fallbackSvg.style.display = 'block';
+            }
+          }}
+        />
+        
+        {/* Fallback SVG (hidden by default) */}
         <svg
-          width={logoSize}
-          height={logoSize}
+          width="100%"
+          height="100%"
           viewBox="0 0 100 100"
-          className={`${sizeClasses[size]} object-contain`}
+          className={`${sizeClasses[size]} object-contain hidden`}
           style={{ 
             animation: animated ? 'vervLogoFloat 3s ease-in-out infinite, vervLogoPulse 4s ease-in-out infinite, vervLogoGlow 5s ease-in-out infinite' : 'none'
           }}
@@ -99,60 +109,60 @@ export function VervConnectLogo({ size = 'md', animated = true, className = '' }
           {/* Gradients */}
           <defs>
             <linearGradient id="vervGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#0ea5e9" />
-              <stop offset="50%" stopColor="#475569" />
-              <stop offset="100%" stopColor="#0ea5e9" />
+              <stop offset="0%" stopColor="#3b82f6" />
+              <stop offset="50%" stopColor="#6366f1" />
+              <stop offset="100%" stopColor="#8b5cf6" />
             </linearGradient>
             
             <linearGradient id="vervBorder" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#0284c7" />
-              <stop offset="100%" stopColor="#334155" />
+              <stop offset="0%" stopColor="#2563eb" />
+              <stop offset="100%" stopColor="#7c3aed" />
             </linearGradient>
             
             <radialGradient id="nodeGradient1">
-              <stop offset="0%" stopColor="#38bdf8" />
-              <stop offset="100%" stopColor="#0ea5e9" />
+              <stop offset="0%" stopColor="#60a5fa" />
+              <stop offset="100%" stopColor="#3b82f6" />
             </radialGradient>
             
             <radialGradient id="nodeGradient2">
-              <stop offset="0%" stopColor="#64748b" />
-              <stop offset="100%" stopColor="#475569" />
+              <stop offset="0%" stopColor="#a78bfa" />
+              <stop offset="100%" stopColor="#8b5cf6" />
             </radialGradient>
             
             <radialGradient id="nodeGradient3">
-              <stop offset="0%" stopColor="#7dd3fc" />
-              <stop offset="100%" stopColor="#0284c7" />
+              <stop offset="0%" stopColor="#34d399" />
+              <stop offset="100%" stopColor="#10b981" />
             </radialGradient>
             
             <radialGradient id="nodeGradient4">
-              <stop offset="0%" stopColor="#94a3b8" />
-              <stop offset="100%" stopColor="#64748b" />
+              <stop offset="0%" stopColor="#fbbf24" />
+              <stop offset="100%" stopColor="#f59e0b" />
             </radialGradient>
             
             <radialGradient id="centerGradient">
               <stop offset="0%" stopColor="#ffffff" />
-              <stop offset="50%" stopColor="#e2e8f0" />
-              <stop offset="100%" stopColor="#cbd5e1" />
+              <stop offset="50%" stopColor="#f1f5f9" />
+              <stop offset="100%" stopColor="#e2e8f0" />
             </radialGradient>
             
             <linearGradient id="lineGradient1" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#38bdf8" />
-              <stop offset="100%" stopColor="#e2e8f0" />
+              <stop offset="0%" stopColor="#60a5fa" />
+              <stop offset="100%" stopColor="#f1f5f9" />
             </linearGradient>
             
             <linearGradient id="lineGradient2" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#64748b" />
-              <stop offset="100%" stopColor="#e2e8f0" />
+              <stop offset="0%" stopColor="#a78bfa" />
+              <stop offset="100%" stopColor="#f1f5f9" />
             </linearGradient>
             
             <linearGradient id="lineGradient3" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#7dd3fc" />
-              <stop offset="100%" stopColor="#e2e8f0" />
+              <stop offset="0%" stopColor="#34d399" />
+              <stop offset="100%" stopColor="#f1f5f9" />
             </linearGradient>
             
             <linearGradient id="lineGradient4" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#94a3b8" />
-              <stop offset="100%" stopColor="#e2e8f0" />
+              <stop offset="0%" stopColor="#fbbf24" />
+              <stop offset="100%" stopColor="#f1f5f9" />
             </linearGradient>
           </defs>
         </svg>

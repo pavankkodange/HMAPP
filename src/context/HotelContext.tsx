@@ -45,7 +45,7 @@ interface HotelContextType {
 
 const HotelContext = createContext<HotelContextType | undefined>(undefined);
 
-// Enhanced demo data with smoking/non-smoking rooms and detailed guest information
+// Enhanced demo data with VIP rooms and guests
 const DEMO_ROOMS: Room[] = [
   { 
     id: '101', 
@@ -137,6 +137,67 @@ const DEMO_ROOMS: Room[] = [
     bedType: 'Two Queens',
     view: 'Garden'
   },
+  // VIP Rooms
+  { 
+    id: '301', 
+    number: '301', 
+    type: 'suite', 
+    status: 'clean', 
+    rate: 450, 
+    photos: ['https://images.pexels.com/photos/1743229/pexels-photo-1743229.jpeg'], 
+    amenities: ['WiFi', 'AC', 'TV', 'Mini Bar', 'Jacuzzi', 'Butler Service'],
+    smokingAllowed: false,
+    floor: 3,
+    maxOccupancy: 6,
+    size: 85,
+    bedType: 'King + Sofa Bed',
+    view: 'Ocean',
+    isVipRoom: true,
+    vipAmenities: ['Personal Butler', '24/7 Concierge', 'Premium Minibar', 'Champagne Welcome', 'Priority Housekeeping', 'Express Laundry'],
+    vipRate: 400, // Special VIP rate (discounted)
+    vipMinimumStay: 2,
+    vipServices: ['Airport Transfer', 'Daily Newspaper', 'Turndown Service', 'Fresh Flowers']
+  },
+  { 
+    id: '302', 
+    number: '302', 
+    type: 'deluxe', 
+    status: 'clean', 
+    rate: 350, 
+    photos: ['https://images.pexels.com/photos/271643/pexels-photo-271643.jpeg'], 
+    amenities: ['WiFi', 'AC', 'TV', 'Mini Bar', 'Balcony', 'Premium Bedding'],
+    smokingAllowed: false,
+    floor: 3,
+    maxOccupancy: 4,
+    size: 55,
+    bedType: 'King',
+    view: 'Ocean',
+    isVipRoom: true,
+    vipAmenities: ['Personal Concierge', 'Premium Minibar', 'Welcome Amenities', 'Priority Services'],
+    vipRate: 320, // Special VIP rate
+    vipMinimumStay: 1,
+    vipServices: ['Late Checkout', 'Complimentary Breakfast', 'Spa Discount']
+  },
+  { 
+    id: '401', 
+    number: '401', 
+    type: 'suite', 
+    status: 'clean', 
+    rate: 650, 
+    photos: ['https://images.pexels.com/photos/1743229/pexels-photo-1743229.jpeg'], 
+    amenities: ['WiFi', 'AC', 'TV', 'Mini Bar', 'Jacuzzi', 'Private Terrace', 'Butler Service'],
+    smokingAllowed: false,
+    floor: 4,
+    maxOccupancy: 8,
+    size: 120,
+    bedType: 'King + Queen + Sofa Bed',
+    view: 'Panoramic Ocean',
+    isVipRoom: true,
+    vipAmenities: ['Dedicated Butler', '24/7 Concierge', 'Premium Everything', 'Champagne & Caviar Welcome', 'Private Chef Available', 'Helicopter Transfer'],
+    vipRate: 550, // Special VIP rate
+    vipMinimumStay: 3,
+    vipServices: ['Private Dining', 'Spa Suite Access', 'Yacht Charter Discount', 'Personal Shopping']
+  }
 ];
 
 const DEMO_GUESTS: Guest[] = [
@@ -192,6 +253,8 @@ const DEMO_GUESTS: Guest[] = [
     address: '456 Oak Avenue, London, UK',
     dateOfBirth: '1978-03-22',
     vipStatus: true,
+    vipTier: 'platinum',
+    vipSince: '2023-06-15',
     loyaltyPoints: 2800,
     roomPreferences: {
       smokingRoom: false,
@@ -212,7 +275,17 @@ const DEMO_GUESTS: Guest[] = [
       email: 'robert.smith@email.com'
     },
     specialRequests: ['Quiet room', 'High floor'],
-    dietaryRestrictions: ['Gluten-free', 'No shellfish']
+    dietaryRestrictions: ['Gluten-free', 'No shellfish'],
+    vipBenefits: ['Room Upgrades', 'Late Checkout', 'Complimentary Breakfast', 'Spa Discounts', 'Priority Reservations'],
+    personalConcierge: 'concierge-001',
+    vipPreferences: {
+      preferredRoomType: 'suite',
+      preferredFloor: 3,
+      preferredAmenities: ['Ocean View', 'Jacuzzi', 'Butler Service'],
+      specialServices: ['Airport Transfer', 'Personal Shopping', 'Restaurant Reservations'],
+      dietaryRequirements: ['Gluten-free', 'Organic Options'],
+      communicationPreference: 'email'
+    }
   },
   {
     id: '3',
@@ -250,6 +323,105 @@ const DEMO_GUESTS: Guest[] = [
     },
     specialRequests: ['Smoking room', 'Ground floor if possible'],
     dietaryRestrictions: []
+  },
+  // VIP Guests
+  {
+    id: '4',
+    name: 'Alexander Blackwood',
+    email: 'alex.blackwood@luxurygroup.com',
+    phone: '+1-555-0201',
+    bookingHistory: [],
+    totalStays: 15,
+    lastStayDate: '2024-01-05',
+    preferredCurrency: 'USD',
+    title: 'Mr.',
+    company: 'Blackwood Luxury Group',
+    nationality: 'American',
+    address: '1 Park Avenue, New York, NY 10016, USA',
+    dateOfBirth: '1975-09-12',
+    vipStatus: true,
+    vipTier: 'diamond',
+    vipSince: '2022-01-01',
+    loyaltyPoints: 8500,
+    roomPreferences: {
+      smokingRoom: false,
+      floor: 'high',
+      view: 'ocean',
+      bedType: 'king'
+    },
+    identificationDetails: {
+      type: 'passport',
+      number: 'US987654321',
+      issuingCountry: 'United States',
+      expiryDate: '2029-09-12'
+    },
+    emergencyContactDetails: {
+      name: 'Victoria Blackwood',
+      relationship: 'Spouse',
+      phone: '+1-555-0202',
+      email: 'victoria.blackwood@email.com'
+    },
+    specialRequests: ['Presidential Suite Only', 'Private Butler', 'Helicopter Transfer'],
+    dietaryRestrictions: ['Keto Diet'],
+    vipBenefits: ['Presidential Suite Access', 'Private Butler', 'Helicopter Transfer', 'Michelin Star Chef', 'Yacht Charter', 'Private Jet Coordination'],
+    personalConcierge: 'concierge-vip-001',
+    vipPreferences: {
+      preferredRoomType: 'suite',
+      preferredFloor: 4,
+      preferredAmenities: ['Panoramic Ocean View', 'Private Terrace', 'Butler Service', 'Jacuzzi'],
+      specialServices: ['Helicopter Transfer', 'Private Chef', 'Yacht Charter', 'Personal Security'],
+      dietaryRequirements: ['Keto-friendly', 'Organic', 'Premium Ingredients'],
+      communicationPreference: 'phone'
+    }
+  },
+  {
+    id: '5',
+    name: 'Isabella Chen',
+    email: 'isabella.chen@techventures.com',
+    phone: '+1-555-0301',
+    bookingHistory: [],
+    totalStays: 8,
+    lastStayDate: '2024-01-12',
+    preferredCurrency: 'USD',
+    title: 'Ms.',
+    company: 'Chen Tech Ventures',
+    nationality: 'Singaporean',
+    address: '88 Marina Bay, Singapore 018956',
+    dateOfBirth: '1988-04-25',
+    vipStatus: true,
+    vipTier: 'gold',
+    vipSince: '2023-03-10',
+    loyaltyPoints: 4200,
+    roomPreferences: {
+      smokingRoom: false,
+      floor: 'high',
+      view: 'ocean',
+      bedType: 'king'
+    },
+    identificationDetails: {
+      type: 'passport',
+      number: 'SG123456789',
+      issuingCountry: 'Singapore',
+      expiryDate: '2028-04-25'
+    },
+    emergencyContactDetails: {
+      name: 'David Chen',
+      relationship: 'Brother',
+      phone: '+65-9123-4567',
+      email: 'david.chen@email.com'
+    },
+    specialRequests: ['High-speed internet', 'Business center access', 'Quiet environment'],
+    dietaryRestrictions: ['Pescatarian'],
+    vipBenefits: ['Suite Upgrades', 'Express Check-in/out', 'Complimentary Breakfast', 'Business Center Access', 'Spa Credits'],
+    personalConcierge: 'concierge-002',
+    vipPreferences: {
+      preferredRoomType: 'deluxe',
+      preferredFloor: 3,
+      preferredAmenities: ['Ocean View', 'High-speed WiFi', 'Work Desk'],
+      specialServices: ['Business Support', 'Tech Setup', 'Meeting Room Access'],
+      dietaryRequirements: ['Pescatarian', 'Asian Cuisine Options'],
+      communicationPreference: 'email'
+    }
   }
 ];
 
