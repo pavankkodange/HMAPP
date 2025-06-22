@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { Room, Guest, Booking, BanquetHall, BanquetBooking, RestaurantTable, TableReservation, RoomCharge, RoomServiceOrder } from '../types';
+import { Room, Guest, Booking, BanquetHall, BanquetBooking, RestaurantTable, TableReservation, RoomCharge, RoomServiceOrder, BanquetAmenity } from '../types';
 
 interface HotelContextType {
   // Rooms
@@ -27,6 +27,13 @@ interface HotelContextType {
   addBanquetHall: (hall: Omit<BanquetHall, 'id'>) => void;
   updateBanquetHall: (hallId: string, hall: Omit<BanquetHall, 'id'>) => void;
   deleteBanquetHall: (hallId: string) => void;
+  
+  // Banquet Amenities
+  banquetAmenities: BanquetAmenity[];
+  addBanquetAmenity: (amenity: Omit<BanquetAmenity, 'id' | 'createdAt'>) => void;
+  updateBanquetAmenity: (amenityId: string, amenity: Partial<BanquetAmenity>) => void;
+  deleteBanquetAmenity: (amenityId: string) => void;
+  toggleAmenityStatus: (amenityId: string) => void;
   
   // Restaurant
   restaurantTables: RestaurantTable[];
@@ -236,7 +243,23 @@ const DEMO_GUESTS: Guest[] = [
       email: 'jane.doe@email.com'
     },
     specialRequests: ['Late checkout', 'Extra pillows'],
-    dietaryRestrictions: ['Vegetarian']
+    dietaryRestrictions: ['Vegetarian'],
+    idDocuments: [
+      {
+        id: '1',
+        type: 'passport',
+        documentName: 'Passport',
+        fileUrl: 'https://images.pexels.com/photos/1370295/pexels-photo-1370295.jpeg',
+        fileType: 'image',
+        fileName: 'passport.jpg',
+        uploadedAt: '2024-01-15T10:30:00Z',
+        uploadedBy: 'system',
+        verified: true,
+        verifiedBy: 'admin',
+        verifiedAt: '2024-01-15T11:00:00Z',
+        expiryDate: '2028-06-15'
+      }
+    ]
   },
   { 
     id: '2', 
@@ -285,7 +308,37 @@ const DEMO_GUESTS: Guest[] = [
       specialServices: ['Airport Transfer', 'Personal Shopping', 'Restaurant Reservations'],
       dietaryRequirements: ['Gluten-free', 'Organic Options'],
       communicationPreference: 'email'
-    }
+    },
+    idDocuments: [
+      {
+        id: '2',
+        type: 'passport',
+        documentName: 'Passport',
+        fileUrl: 'https://images.pexels.com/photos/1370295/pexels-photo-1370295.jpeg',
+        fileType: 'image',
+        fileName: 'uk_passport.jpg',
+        uploadedAt: '2024-01-20T09:15:00Z',
+        uploadedBy: 'system',
+        verified: true,
+        verifiedBy: 'admin',
+        verifiedAt: '2024-01-20T10:00:00Z',
+        expiryDate: '2026-03-22'
+      },
+      {
+        id: '3',
+        type: 'visa',
+        documentName: 'Visa Document',
+        fileUrl: 'https://example.com/visa.pdf',
+        fileType: 'pdf',
+        fileName: 'visa_document.pdf',
+        uploadedAt: '2024-01-20T09:20:00Z',
+        uploadedBy: 'system',
+        verified: true,
+        verifiedBy: 'admin',
+        verifiedAt: '2024-01-20T10:05:00Z',
+        expiryDate: '2025-12-31'
+      }
+    ]
   },
   {
     id: '3',
@@ -372,7 +425,36 @@ const DEMO_GUESTS: Guest[] = [
       specialServices: ['Helicopter Transfer', 'Private Chef', 'Yacht Charter', 'Personal Security'],
       dietaryRequirements: ['Keto-friendly', 'Organic', 'Premium Ingredients'],
       communicationPreference: 'phone'
-    }
+    },
+    idDocuments: [
+      {
+        id: '4',
+        type: 'passport',
+        documentName: 'Passport',
+        fileUrl: 'https://images.pexels.com/photos/1370295/pexels-photo-1370295.jpeg',
+        fileType: 'image',
+        fileName: 'vip_passport.jpg',
+        uploadedAt: '2024-01-05T14:30:00Z',
+        uploadedBy: 'concierge-vip-001',
+        verified: true,
+        verifiedBy: 'admin',
+        verifiedAt: '2024-01-05T15:00:00Z',
+        expiryDate: '2029-09-12'
+      },
+      {
+        id: '5',
+        type: 'other',
+        documentName: 'Private Jet License',
+        fileUrl: 'https://example.com/jet_license.pdf',
+        fileType: 'pdf',
+        fileName: 'private_jet_license.pdf',
+        uploadedAt: '2024-01-05T14:35:00Z',
+        uploadedBy: 'concierge-vip-001',
+        verified: true,
+        verifiedBy: 'admin',
+        verifiedAt: '2024-01-05T15:05:00Z'
+      }
+    ]
   },
   {
     id: '5',
@@ -421,7 +503,23 @@ const DEMO_GUESTS: Guest[] = [
       specialServices: ['Business Support', 'Tech Setup', 'Meeting Room Access'],
       dietaryRequirements: ['Pescatarian', 'Asian Cuisine Options'],
       communicationPreference: 'email'
-    }
+    },
+    idDocuments: [
+      {
+        id: '6',
+        type: 'passport',
+        documentName: 'Passport',
+        fileUrl: 'https://images.pexels.com/photos/1370295/pexels-photo-1370295.jpeg',
+        fileType: 'image',
+        fileName: 'singapore_passport.jpg',
+        uploadedAt: '2024-01-12T11:45:00Z',
+        uploadedBy: 'concierge-002',
+        verified: true,
+        verifiedBy: 'admin',
+        verifiedAt: '2024-01-12T12:15:00Z',
+        expiryDate: '2028-04-25'
+      }
+    ]
   }
 ];
 
@@ -444,6 +542,142 @@ const DEMO_BOOKINGS: Booking[] = [
     paymentStatus: 'paid',
     createdAt: '2024-01-20T10:00:00Z',
     confirmationNumber: 'HM2024001'
+  }
+];
+
+// Default banquet amenities
+const DEMO_BANQUET_AMENITIES: BanquetAmenity[] = [
+  {
+    id: '1',
+    name: 'Audio System',
+    description: 'Professional sound system with microphones and speakers',
+    category: 'audio-visual',
+    icon: 'volume-2',
+    isDefault: true,
+    isActive: true,
+    createdAt: '2024-01-01T00:00:00Z',
+    createdBy: 'system'
+  },
+  {
+    id: '2',
+    name: 'Stage',
+    description: 'Elevated platform for presentations and performances',
+    category: 'staging',
+    icon: 'square',
+    isDefault: true,
+    isActive: true,
+    createdAt: '2024-01-01T00:00:00Z',
+    createdBy: 'system'
+  },
+  {
+    id: '3',
+    name: 'Lighting',
+    description: 'Professional lighting setup with dimming controls',
+    category: 'lighting',
+    icon: 'lightbulb',
+    isDefault: true,
+    isActive: true,
+    createdAt: '2024-01-01T00:00:00Z',
+    createdBy: 'system'
+  },
+  {
+    id: '4',
+    name: 'Dance Floor',
+    description: 'Polished wooden dance floor area',
+    category: 'furniture',
+    icon: 'music',
+    isDefault: true,
+    isActive: true,
+    createdAt: '2024-01-01T00:00:00Z',
+    createdBy: 'system'
+  },
+  {
+    id: '5',
+    name: 'Catering',
+    description: 'Full catering service with professional staff',
+    category: 'catering',
+    icon: 'utensils',
+    isDefault: true,
+    isActive: true,
+    createdAt: '2024-01-01T00:00:00Z',
+    createdBy: 'system'
+  },
+  {
+    id: '6',
+    name: 'Photography',
+    description: 'Professional photography and videography services',
+    category: 'service',
+    icon: 'camera',
+    isDefault: true,
+    isActive: true,
+    createdAt: '2024-01-01T00:00:00Z',
+    createdBy: 'system'
+  },
+  {
+    id: '7',
+    name: 'Decorations',
+    description: 'Event decoration and floral arrangements',
+    category: 'decoration',
+    icon: 'flower',
+    isDefault: true,
+    isActive: true,
+    createdAt: '2024-01-01T00:00:00Z',
+    createdBy: 'system'
+  },
+  {
+    id: '8',
+    name: 'Parking',
+    description: 'Dedicated parking spaces for event guests',
+    category: 'service',
+    icon: 'car',
+    isDefault: true,
+    isActive: true,
+    createdAt: '2024-01-01T00:00:00Z',
+    createdBy: 'system'
+  },
+  {
+    id: '9',
+    name: 'Projector',
+    description: 'High-definition projector with screen',
+    category: 'audio-visual',
+    icon: 'projector',
+    isDefault: true,
+    isActive: true,
+    createdAt: '2024-01-01T00:00:00Z',
+    createdBy: 'system'
+  },
+  {
+    id: '10',
+    name: 'Air Conditioning',
+    description: 'Climate control system for guest comfort',
+    category: 'technology',
+    icon: 'wind',
+    isDefault: true,
+    isActive: true,
+    createdAt: '2024-01-01T00:00:00Z',
+    createdBy: 'system'
+  },
+  {
+    id: '11',
+    name: 'WiFi',
+    description: 'High-speed wireless internet access',
+    category: 'technology',
+    icon: 'wifi',
+    isDefault: true,
+    isActive: true,
+    createdAt: '2024-01-01T00:00:00Z',
+    createdBy: 'system'
+  },
+  {
+    id: '12',
+    name: 'Bar Setup',
+    description: 'Professional bar service with bartender',
+    category: 'catering',
+    icon: 'wine',
+    isDefault: true,
+    isActive: true,
+    createdAt: '2024-01-01T00:00:00Z',
+    createdBy: 'system'
   }
 ];
 
@@ -471,7 +705,7 @@ const DEMO_BANQUET_HALLS: BanquetHall[] = [
       'https://images.pexels.com/photos/2306281/pexels-photo-2306281.jpeg',
       'https://images.pexels.com/photos/1024993/pexels-photo-1024993.jpeg'
     ], 
-    amenities: ['Outdoor Setting', 'Garden View', 'Natural Lighting', 'Catering', 'Photography']
+    amenities: ['Decorations', 'Catering', 'Photography']
   },
   {
     id: '3',
@@ -495,7 +729,7 @@ const DEMO_BANQUET_HALLS: BanquetHall[] = [
       'https://images.pexels.com/photos/1385472/pexels-photo-1385472.jpeg',
       'https://images.pexels.com/photos/1065084/pexels-photo-1065084.jpeg'
     ],
-    amenities: ['City View', 'Outdoor Setting', 'Bar Setup', 'Lighting', 'Catering', 'Photography', 'Weather Protection']
+    amenities: ['Bar Setup', 'Lighting', 'Catering', 'Photography']
   },
   {
     id: '5',
@@ -506,7 +740,7 @@ const DEMO_BANQUET_HALLS: BanquetHall[] = [
       'https://images.pexels.com/photos/169198/pexels-photo-169198.jpeg',
       'https://images.pexels.com/photos/2306281/pexels-photo-2306281.jpeg'
     ],
-    amenities: ['Private Dining', 'Elegant Decor', 'Audio System', 'Catering', 'Wine Service']
+    amenities: ['Audio System', 'Catering']
   }
 ];
 
@@ -571,6 +805,7 @@ export function HotelProvider({ children }: { children: ReactNode }) {
   const [bookings, setBookings] = useState<Booking[]>(DEMO_BOOKINGS);
   const [banquetHalls, setBanquetHalls] = useState<BanquetHall[]>(DEMO_BANQUET_HALLS);
   const [banquetBookings, setBanquetBookings] = useState<BanquetBooking[]>(DEMO_BANQUET_BOOKINGS);
+  const [banquetAmenities, setBanquetAmenities] = useState<BanquetAmenity[]>(DEMO_BANQUET_AMENITIES);
   const [restaurantTables, setRestaurantTables] = useState<RestaurantTable[]>(DEMO_RESTAURANT_TABLES);
   const [tableReservations, setTableReservations] = useState<TableReservation[]>(DEMO_TABLE_RESERVATIONS);
   const [roomServiceOrders, setRoomServiceOrders] = useState<RoomServiceOrder[]>([]);
@@ -670,6 +905,46 @@ export function HotelProvider({ children }: { children: ReactNode }) {
     setBanquetHalls(prev => prev.filter(hall => hall.id !== hallId));
   };
 
+  // Banquet Amenities Management
+  const addBanquetAmenity = (amenityData: Omit<BanquetAmenity, 'id' | 'createdAt'>) => {
+    const newAmenity: BanquetAmenity = {
+      ...amenityData,
+      id: Date.now().toString(),
+      createdAt: new Date().toISOString()
+    };
+    setBanquetAmenities(prev => [...prev, newAmenity]);
+  };
+
+  const updateBanquetAmenity = (amenityId: string, amenityData: Partial<BanquetAmenity>) => {
+    setBanquetAmenities(prev => prev.map(amenity => 
+      amenity.id === amenityId 
+        ? { 
+            ...amenity, 
+            ...amenityData, 
+            lastModified: new Date().toISOString(),
+            modifiedBy: 'admin' // In a real app, this would be the current user
+          } 
+        : amenity
+    ));
+  };
+
+  const deleteBanquetAmenity = (amenityId: string) => {
+    setBanquetAmenities(prev => prev.filter(amenity => amenity.id !== amenityId));
+  };
+
+  const toggleAmenityStatus = (amenityId: string) => {
+    setBanquetAmenities(prev => prev.map(amenity => 
+      amenity.id === amenityId 
+        ? { 
+            ...amenity, 
+            isActive: !amenity.isActive,
+            lastModified: new Date().toISOString(),
+            modifiedBy: 'admin'
+          } 
+        : amenity
+    ));
+  };
+
   const updateTableStatus = (tableId: string, status: RestaurantTable['status']) => {
     setRestaurantTables(prev => prev.map(table => 
       table.id === tableId ? { ...table, status } : table
@@ -736,6 +1011,11 @@ export function HotelProvider({ children }: { children: ReactNode }) {
       addBanquetHall,
       updateBanquetHall,
       deleteBanquetHall,
+      banquetAmenities,
+      addBanquetAmenity,
+      updateBanquetAmenity,
+      deleteBanquetAmenity,
+      toggleAmenityStatus,
       restaurantTables,
       tableReservations,
       updateTableStatus,

@@ -21,7 +21,9 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
-  RefreshCw
+  RefreshCw,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 
 export function FinancialManagement() {
@@ -50,16 +52,63 @@ export function FinancialManagement() {
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
-  const [dateRange, setDateRange] = useState({
+  
+  // Date filtering state
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [dateFilterType, setDateFilterType] = useState<'month' | 'year' | 'custom'>('month');
+  const [customDateRange, setCustomDateRange] = useState({
     start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0]
   });
+  const [showDateFilters, setShowDateFilters] = useState(false);
 
+  // Generate year options (current year and 5 years back)
+  const yearOptions = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
+  
+  // Month options
+  const monthOptions = [
+    { value: 1, label: 'January' },
+    { value: 2, label: 'February' },
+    { value: 3, label: 'March' },
+    { value: 4, label: 'April' },
+    { value: 5, label: 'May' },
+    { value: 6, label: 'June' },
+    { value: 7, label: 'July' },
+    { value: 8, label: 'August' },
+    { value: 9, label: 'September' },
+    { value: 10, label: 'October' },
+    { value: 11, label: 'November' },
+    { value: 12, label: 'December' }
+  ];
+
+  // Calculate date range based on filter type
+  const getDateRange = () => {
+    switch (dateFilterType) {
+      case 'month':
+        const monthStart = new Date(selectedYear, selectedMonth - 1, 1).toISOString().split('T')[0];
+        const monthEnd = new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0];
+        return { start: monthStart, end: monthEnd };
+      case 'year':
+        const yearStart = new Date(selectedYear, 0, 1).toISOString().split('T')[0];
+        const yearEnd = new Date(selectedYear, 11, 31).toISOString().split('T')[0];
+        return { start: yearStart, end: yearEnd };
+      case 'custom':
+        return customDateRange;
+      default:
+        return customDateRange;
+    }
+  };
+
+  const dateRange = getDateRange();
   const outstandingInvoices = getOutstandingInvoices();
   const overdueInvoices = getOverdueInvoices();
   const revenueBreakdown = getRevenueBreakdown(dateRange.start, dateRange.end);
   const paymentMethodStats = getPaymentMethodStats(dateRange.start, dateRange.end);
   const monthlyTrend = getMonthlyRevenueTrend(6);
+
+  // Calculate total revenue for the selected period
+  const totalRevenue = Object.values(revenueBreakdown).reduce((a, b) => a + b, 0);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -68,6 +117,20 @@ export function FinancialManagement() {
       case 'overdue': return 'bg-red-100 text-red-800';
       case 'draft': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getDateRangeLabel = () => {
+    switch (dateFilterType) {
+      case 'month':
+        const monthName = monthOptions.find(m => m.value === selectedMonth)?.label;
+        return `${monthName} ${selectedYear}`;
+      case 'year':
+        return `${selectedYear}`;
+      case 'custom':
+        return `${new Date(customDateRange.start).toLocaleDateString()} - ${new Date(customDateRange.end).toLocaleDateString()}`;
+      default:
+        return 'Custom Range';
     }
   };
 
@@ -353,6 +416,151 @@ export function FinancialManagement() {
     );
   };
 
+  const PaymentForm = () => {
+    const [formData, setFormData] = useState({
+      invoiceId: '',
+      amount: '',
+      method: 'card' as 'cash' | 'card' | 'bank-transfer' | 'check' | 'online',
+      reference: '',
+      notes: ''
+    });
+
+    const handleSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      
+      processPayment({
+        invoiceId: formData.invoiceId,
+        amount: parseFloat(formData.amount),
+        currency: hotelSettings.baseCurrency,
+        method: formData.method,
+        status: 'completed',
+        reference: formData.reference,
+        processedBy: user!.id,
+        notes: formData.notes
+      });
+
+      if (formData.invoiceId) {
+        markInvoiceAsPaid(formData.invoiceId, {
+          amount: parseFloat(formData.amount),
+          currency: hotelSettings.baseCurrency,
+          method: formData.method,
+          status: 'completed',
+          reference: formData.reference,
+          processedBy: user!.id
+        });
+      }
+
+      setShowPaymentForm(false);
+      setFormData({
+        invoiceId: '',
+        amount: '',
+        method: 'card',
+        reference: '',
+        notes: ''
+      });
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-2xl max-w-md w-full m-4">
+          <div className="p-8">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-gray-900">Record Payment</h3>
+              <button
+                onClick={() => setShowPaymentForm(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Invoice (Optional)</label>
+                <select
+                  value={formData.invoiceId}
+                  onChange={(e) => setFormData({ ...formData, invoiceId: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Select invoice (optional)</option>
+                  {outstandingInvoices.map((invoice) => (
+                    <option key={invoice.id} value={invoice.id}>
+                      {invoice.invoiceNumber} - {formatCurrency(invoice.totalAmount)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Amount</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.amount}
+                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
+                <select
+                  value={formData.method}
+                  onChange={(e) => setFormData({ ...formData, method: e.target.value as any })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="cash">Cash</option>
+                  <option value="card">Credit Card</option>
+                  <option value="bank-transfer">Bank Transfer</option>
+                  <option value="check">Check</option>
+                  <option value="online">Online Payment</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Reference</label>
+                <input
+                  type="text"
+                  value={formData.reference}
+                  onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Transaction ID, Check number, etc."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex space-x-4 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentForm(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  Record Payment
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-8">
@@ -394,7 +602,6 @@ export function FinancialManagement() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
                   className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm ${
-                
                     activeTab === tab.id
                       ? 'border-indigo-500 text-indigo-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -419,6 +626,142 @@ export function FinancialManagement() {
       {/* Overview Tab */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
+          {/* Date Filter Controls */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
+                <Calendar className="w-5 h-5 text-indigo-600" />
+                <span>Financial Period: {getDateRangeLabel()}</span>
+              </h3>
+              <button
+                onClick={() => setShowDateFilters(!showDateFilters)}
+                className="flex items-center space-x-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200"
+              >
+                <Filter className="w-4 h-4" />
+                <span>Change Period</span>
+                {showDateFilters ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+            </div>
+            
+            {showDateFilters && (
+              <div className="bg-gray-50 rounded-lg p-4 mt-4 border border-gray-200">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Filter Type</label>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => setDateFilterType('month')}
+                        className={`flex-1 px-3 py-2 text-sm rounded-lg ${
+                          dateFilterType === 'month' 
+                            ? 'bg-indigo-600 text-white' 
+                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        Month
+                      </button>
+                      <button
+                        onClick={() => setDateFilterType('year')}
+                        className={`flex-1 px-3 py-2 text-sm rounded-lg ${
+                          dateFilterType === 'year' 
+                            ? 'bg-indigo-600 text-white' 
+                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        Year
+                      </button>
+                      <button
+                        onClick={() => setDateFilterType('custom')}
+                        className={`flex-1 px-3 py-2 text-sm rounded-lg ${
+                          dateFilterType === 'custom' 
+                            ? 'bg-indigo-600 text-white' 
+                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        Custom
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {dateFilterType === 'month' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Year</label>
+                        <select
+                          value={selectedYear}
+                          onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                        >
+                          {yearOptions.map(year => (
+                            <option key={year} value={year}>{year}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Month</label>
+                        <select
+                          value={selectedMonth}
+                          onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                        >
+                          {monthOptions.map(month => (
+                            <option key={month.value} value={month.value}>{month.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  )}
+                  
+                  {dateFilterType === 'year' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Year</label>
+                      <select
+                        value={selectedYear}
+                        onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                      >
+                        {yearOptions.map(year => (
+                          <option key={year} value={year}>{year}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  
+                  {dateFilterType === 'custom' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+                        <input
+                          type="date"
+                          value={customDateRange.start}
+                          onChange={(e) => setCustomDateRange({ ...customDateRange, start: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+                        <input
+                          type="date"
+                          value={customDateRange.end}
+                          onChange={(e) => setCustomDateRange({ ...customDateRange, end: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+                
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setShowDateFilters(false)}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                  >
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Key Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -426,9 +769,9 @@ export function FinancialManagement() {
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Revenue</p>
                   <p className="text-3xl font-bold text-gray-900 mt-2">
-                    {formatCurrency(Object.values(revenueBreakdown).reduce((a, b) => a + b, 0))}
+                    {formatCurrency(totalRevenue)}
                   </p>
-                  <p className="text-sm text-green-600 mt-1">Last 30 days</p>
+                  <p className="text-sm text-green-600 mt-1">{getDateRangeLabel()}</p>
                 </div>
                 <div className="p-3 bg-green-100 rounded-lg">
                   <DollarSign className="w-6 h-6 text-green-600" />
@@ -466,8 +809,13 @@ export function FinancialManagement() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Payments</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-2">{payments.length}</p>
-                  <p className="text-sm text-gray-600 mt-1">This month</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-2">
+                    {payments.filter(p => 
+                      p.processedAt >= dateRange.start && 
+                      p.processedAt <= dateRange.end
+                    ).length}
+                  </p>
+                  <p className="text-sm text-gray-600 mt-1">{getDateRangeLabel()}</p>
                 </div>
                 <div className="p-3 bg-purple-100 rounded-lg">
                   <CreditCard className="w-6 h-6 text-purple-600" />
@@ -481,7 +829,7 @@ export function FinancialManagement() {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                 <PieChart className="w-5 h-5 mr-2 text-indigo-600" />
-                Revenue by Category
+                Revenue by Category ({getDateRangeLabel()})
               </h3>
               <div className="space-y-4">
                 {Object.entries(revenueBreakdown).map(([category, amount]) => (
@@ -498,6 +846,11 @@ export function FinancialManagement() {
                     <span className="text-sm font-semibold text-gray-900">{formatCurrency(amount)}</span>
                   </div>
                 ))}
+                {totalRevenue === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    No revenue data available for this period
+                  </div>
+                )}
               </div>
             </div>
 
@@ -515,7 +868,7 @@ export function FinancialManagement() {
                         <div 
                           className="bg-indigo-600 h-2 rounded-full"
                           style={{ 
-                            width: `${Math.min(100, (month.revenue / Math.max(...monthlyTrend.map(m => m.revenue))) * 100)}%` 
+                            width: `${Math.min(100, (month.revenue / Math.max(...monthlyTrend.map(m => m.revenue), 1)) * 100)}%` 
                           }}
                         ></div>
                       </div>
@@ -525,6 +878,11 @@ export function FinancialManagement() {
                     </div>
                   </div>
                 ))}
+                {monthlyTrend.every(m => m.revenue === 0) && (
+                  <div className="text-center py-8 text-gray-500">
+                    No monthly trend data available
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -533,33 +891,39 @@ export function FinancialManagement() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Financial Activity</h3>
             <div className="space-y-4">
-              {[...invoices.slice(0, 3), ...payments.slice(0, 2)].map((item, index) => (
-                <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    {'invoiceNumber' in item ? (
-                      <FileText className="w-5 h-5 text-blue-600" />
-                    ) : (
-                      <CreditCard className="w-5 h-5 text-green-600" />
-                    )}
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {'invoiceNumber' in item ? `Invoice ${item.invoiceNumber}` : `Payment ${item.reference || item.id}`}
+              {[...invoices.slice(0, 3), ...payments.slice(0, 2)].length > 0 ? (
+                [...invoices.slice(0, 3), ...payments.slice(0, 2)].map((item, index) => (
+                  <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      {'invoiceNumber' in item ? (
+                        <FileText className="w-5 h-5 text-blue-600" />
+                      ) : (
+                        <CreditCard className="w-5 h-5 text-green-600" />
+                      )}
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          {'invoiceNumber' in item ? `Invoice ${item.invoiceNumber}` : `Payment ${item.reference || item.id}`}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {'clientName' in item ? item.clientName : `Method: ${item.method}`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-gray-900">
+                        {formatCurrency('totalAmount' in item ? item.totalAmount : item.amount)}
                       </p>
                       <p className="text-xs text-gray-500">
-                        {'clientName' in item ? item.clientName : `Method: ${item.method}`}
+                        {'issueDate' in item ? item.issueDate : item.processedAt.split('T')[0]}
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-gray-900">
-                      {formatCurrency('totalAmount' in item ? item.totalAmount : item.amount)}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {'issueDate' in item ? item.issueDate : item.processedAt.split('T')[0]}
-                    </p>
-                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  No recent financial activity to display
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </div>
@@ -728,14 +1092,14 @@ export function FinancialManagement() {
                 <input
                   type="date"
                   value={dateRange.start}
-                  onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                  onChange={(e) => setCustomDateRange({ ...customDateRange, start: e.target.value })}
                   className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                 />
                 <span className="text-gray-500">to</span>
                 <input
                   type="date"
                   value={dateRange.end}
-                  onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                  onChange={(e) => setCustomDateRange({ ...customDateRange, end: e.target.value })}
                   className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                 />
                 <button
@@ -826,6 +1190,7 @@ export function FinancialManagement() {
 
       {/* Modals */}
       {showInvoiceForm && <InvoiceForm />}
+      {showPaymentForm && <PaymentForm />}
     </div>
   );
 }

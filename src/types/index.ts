@@ -123,19 +123,7 @@ export interface Room {
   vipServices?: string[]; // Included VIP services
 }
 
-export interface IdProofDocument {
-  id: string;
-  fileName: string;
-  fileType: string;
-  fileSize: number;
-  uploadDate: string;
-  preview: string;
-  verified: boolean;
-  verifiedBy?: string;
-  verificationDate?: string;
-  notes?: string;
-}
-
+// Enhanced Guest interface with ID document support
 export interface Guest {
   id: string;
   name: string;
@@ -167,7 +155,7 @@ export interface Guest {
     bedType?: string;
   };
   identificationDetails?: {
-    type: 'passport' | 'drivers_license' | 'national_id';
+    type: 'passport' | 'drivers_license' | 'national_id' | 'visa';
     number: string;
     issuingCountry?: string;
     expiryDate?: string;
@@ -178,6 +166,22 @@ export interface Guest {
     phone: string;
     email?: string;
   };
+  // Enhanced ID Document Management
+  idDocuments?: Array<{
+    id: string;
+    type: 'passport' | 'drivers_license' | 'national_id' | 'visa' | 'other';
+    documentName: string;
+    fileUrl: string;
+    fileType: 'image' | 'pdf';
+    fileName: string;
+    uploadedAt: string;
+    uploadedBy: string;
+    verified?: boolean;
+    verifiedBy?: string;
+    verifiedAt?: string;
+    expiryDate?: string;
+    notes?: string;
+  }>;
   // VIP Guest Features
   vipTier?: 'gold' | 'platinum' | 'diamond'; // VIP membership tiers
   vipSince?: string; // Date when VIP status was granted
@@ -191,8 +195,6 @@ export interface Guest {
     dietaryRequirements?: string[];
     communicationPreference?: 'email' | 'phone' | 'sms';
   };
-  // ID Proof Documents
-  idProofDocuments?: IdProofDocument[];
 }
 
 export interface Booking {
@@ -262,6 +264,21 @@ export interface BanquetHall {
   availableEquipment?: string[];
   minimumHours?: number;
   cancellationPolicy?: string;
+}
+
+// Banquet Amenity Management
+export interface BanquetAmenity {
+  id: string;
+  name: string;
+  description?: string;
+  category: 'audio-visual' | 'catering' | 'decoration' | 'furniture' | 'lighting' | 'staging' | 'technology' | 'service' | 'other';
+  icon?: string;
+  isDefault: boolean; // Whether this is a default amenity or custom
+  isActive: boolean;
+  createdAt: string;
+  createdBy: string;
+  lastModified?: string;
+  modifiedBy?: string;
 }
 
 export interface BanquetBooking {
