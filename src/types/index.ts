@@ -123,6 +123,19 @@ export interface Room {
   vipServices?: string[]; // Included VIP services
 }
 
+export interface IdProofDocument {
+  id: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  uploadDate: string;
+  preview: string;
+  verified: boolean;
+  verifiedBy?: string;
+  verificationDate?: string;
+  notes?: string;
+}
+
 export interface Guest {
   id: string;
   name: string;
@@ -178,6 +191,8 @@ export interface Guest {
     dietaryRequirements?: string[];
     communicationPreference?: 'email' | 'phone' | 'sms';
   };
+  // ID Proof Documents
+  idProofDocuments?: IdProofDocument[];
 }
 
 export interface Booking {

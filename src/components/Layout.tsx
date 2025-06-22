@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useCommunication } from '../context/CommunicationContext';
 import { useBranding } from '../context/BrandingContext';
 import { VervConnectLogo } from './VervConnectLogo';
-import { Hotel, Calendar, Bed, Users, UtensilsCrossed, BarChart3, LogOut, Menu, X, Settings, Shield, ZoomIn as Room, MessageSquare, DollarSign, Bell, Building } from 'lucide-react';
+import { Hotel, Calendar, Bed, Users, UtensilsCrossed, BarChart3, LogOut, Menu, X, Settings, Shield, ZoomIn as Room, MessageSquare, DollarSign, Bell, Building, Home } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -150,23 +150,35 @@ export function Layout({ children, currentModule, onModuleChange }: LayoutProps)
       
       <div className={`flex flex-col ${mobile ? 'w-80' : 'w-80'} bg-white/95 backdrop-blur-md shadow-2xl border-r border-blue-100 ${mobile ? 'relative' : ''}`}>
         {/* VervConnect Platform Branding */}
-        <div className="flex items-center justify-between h-16 lg:h-24 px-4 lg:px-6 border-b border-blue-100 bg-gradient-to-r from-sky-50 via-blue-50 to-indigo-50">
-          <div className="flex items-center space-x-3 lg:space-x-4 w-full">
-            <VervConnectLogo size={mobile ? "md" : "lg"} animated={true} />
-            <div className="flex-1 min-w-0">
-              <h1 className={`${mobile ? 'text-xl' : 'text-2xl'} font-bold bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent leading-tight truncate`}>
-                VervConnect
-              </h1>
-              <p className={`${mobile ? 'text-xs' : 'text-sm'} bg-gradient-to-r from-sky-500 via-blue-500 to-indigo-500 bg-clip-text text-transparent font-medium truncate`}>
-                Connect with Comfort
-              </p>
+        <div className="flex items-center justify-between h-16 lg:h-20 px-3 lg:px-4 border-b border-blue-100 bg-gradient-to-r from-sky-50 via-blue-50 to-indigo-50">
+          <div className="flex items-center space-x-2 w-full min-w-0">
+            {/* Home button - positioned to the left */}
+            <button
+              onClick={() => handleModuleChange('dashboard')}
+              className="flex-shrink-0 p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-colors touch-manipulation"
+            >
+              <Home className="w-4 h-4 lg:w-5 lg:h-5" />
+            </button>
+            
+            {/* Logo and text container with proper spacing */}
+            <div className="flex items-center space-x-2 lg:space-x-3 flex-1 min-w-0">
+              <VervConnectLogo size={mobile ? "sm" : "md"} animated={true} />
+              <div className="flex-1 min-w-0">
+                <h1 className="text-lg lg:text-xl font-bold bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent leading-tight truncate">
+                  VervConnect
+                </h1>
+                <p className="text-xs lg:text-sm bg-gradient-to-r from-sky-500 via-blue-500 to-indigo-500 bg-clip-text text-transparent font-medium truncate">
+                  Connect with Comfort
+                </p>
+              </div>
             </div>
           </div>
+          
           {mobile && (
             <button 
               onClick={closeSidebar}
               onTouchEnd={closeSidebar}
-              className="lg:hidden ml-2 flex-shrink-0 p-2 hover:bg-blue-100 rounded-lg transition-colors touch-manipulation"
+              className="lg:hidden flex-shrink-0 p-2 hover:bg-blue-100 rounded-lg transition-colors touch-manipulation"
             >
               <X className="w-5 h-5 text-blue-600" />
             </button>
@@ -303,18 +315,30 @@ export function Layout({ children, currentModule, onModuleChange }: LayoutProps)
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="bg-white/95 backdrop-blur-sm shadow-sm border-b border-blue-100 lg:hidden">
           <div className="flex items-center justify-between h-14 px-4">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="text-blue-600 hover:text-blue-800 flex-shrink-0 p-2 hover:bg-blue-100 rounded-lg transition-colors touch-manipulation"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
+            <div className="flex items-center space-x-2">
+              {/* Home button - moved to left of logo */}
+              <button
+                onClick={() => handleModuleChange('dashboard')}
+                className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-colors touch-manipulation"
+              >
+                <Home className="w-5 h-5" />
+              </button>
+              
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="text-blue-600 hover:text-blue-800 flex-shrink-0 p-2 hover:bg-blue-100 rounded-lg transition-colors touch-manipulation"
+              >
+                <Menu className="w-6 h-6" />
+              </button>
+            </div>
+            
             <div className="flex items-center space-x-2 flex-1 justify-center min-w-0">
               <VervConnectLogo size="sm" animated={true} />
               <div className="text-lg font-bold bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent truncate">
                 VervConnect
               </div>
             </div>
+            
             <div className="flex items-center space-x-2 flex-shrink-0">
               {unreadCount > 0 && (
                 <button

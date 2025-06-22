@@ -26,7 +26,10 @@ import {
   Cookie,
   Salad,
   Settings,
-  Edit
+  Edit,
+  Trash2,
+  Heart,
+  Info
 } from 'lucide-react';
 import { MenuCategory, MenuItem, RoomServiceOrder, OrderItem } from '../types';
 
@@ -57,6 +60,7 @@ export function RoomServiceModule({ filters }: RoomServiceModuleProps) {
   const [showMenuManagement, setShowMenuManagement] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [favorites, setFavorites] = useState<string[]>([]);
 
   // Apply filters from dashboard navigation
   useEffect(() => {
@@ -331,12 +335,13 @@ export function RoomServiceModule({ filters }: RoomServiceModuleProps) {
     }
   };
 
-  const addToCart = (menuItem: MenuItem) => {
+  // Cart Management Functions
+  const addToCart = (menuItem: MenuItem, quantity: number = 1) => {
     const existingItem = cart.find(item => item.menuItemId === menuItem.id);
     if (existingItem) {
       setCart(cart.map(item => 
         item.menuItemId === menuItem.id 
-          ? { ...item, quantity: item.quantity + 1 }
+          ? { ...item, quantity: item.quantity + quantity }
           : item
       ));
     } else {
@@ -345,7 +350,7 @@ export function RoomServiceModule({ filters }: RoomServiceModuleProps) {
         menuItemId: menuItem.id,
         name: menuItem.name,
         price: menuItem.price,
-        quantity: 1
+        quantity: quantity
       };
       setCart([...cart, newItem]);
     }
@@ -365,8 +370,24 @@ export function RoomServiceModule({ filters }: RoomServiceModuleProps) {
     }
   };
 
+  const clearCart = () => {
+    setCart([]);
+  };
+
   const getCartTotal = () => {
     return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+  };
+
+  const getCartItemCount = () => {
+    return cart.reduce((total, item) => total + item.quantity, 0);
+  };
+
+  const toggleFavorite = (itemId: string) => {
+    setFavorites(prev => 
+      prev.includes(itemId) 
+        ? prev.filter(id => id !== itemId)
+        : [...prev, itemId]
+    );
   };
 
   const OrderForm = () => {
@@ -418,7 +439,7 @@ export function RoomServiceModule({ filters }: RoomServiceModuleProps) {
         });
       }
 
-      setCart([]);
+      clearCart();
       setShowOrderForm(false);
       alert('Order placed successfully!');
     };
@@ -563,13 +584,16 @@ export function RoomServiceModule({ filters }: RoomServiceModuleProps) {
 
   const CartSidebar = () => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-end z-50">
-      <div className="bg-white w-96 h-full overflow-y-auto">
+      <div className="bg-white w-96 h-full overflow-y-auto shadow-2xl">
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-gray-900">Your Order</h3>
+            <h3 className="text-xl font-bold text-gray-900 flex items-center space-x-2">
+              <ShoppingCart className="w-6 h-6" />
+              <span>Your Order</span>
+            </h3>
             <button
               onClick={() => setShowCart(false)}
-              className="p-2 hover:bg-gray-100 rounded-lg"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -578,13 +602,14 @@ export function RoomServiceModule({ filters }: RoomServiceModuleProps) {
           {cart.length === 0 ? (
             <div className="text-center py-12">
               <ShoppingCart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">Your cart is empty</p>
+              <p className="text-gray-500 text-lg mb-2">Your cart is empty</p>
+              <p className="text-gray-400 text-sm">Add some delicious items to get started!</p>
             </div>
           ) : (
             <>
               <div className="space-y-4 mb-6">
                 {cart.map((item) => (
-                  <div key={item.id} className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                  <div key={item.id} className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
                     <div className="flex-1">
                       <h4 className="font-medium text-gray-900">{item.name}</h4>
                       <p className="text-sm text-gray-600">{formatCurrency(item.price)} each</p>
@@ -592,45 +617,67 @@ export function RoomServiceModule({ filters }: RoomServiceModuleProps) {
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                        className="p-1 hover:bg-gray-200 rounded"
+                        className="p-1 hover:bg-gray-200 rounded-full transition-colors"
                       >
                         <Minus className="w-4 h-4" />
                       </button>
-                      <span className="w-8 text-center">{item.quantity}</span>
+                      <span className="w-8 text-center font-medium">{item.quantity}</span>
                       <button
                         onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                        className="p-1 hover:bg-gray-200 rounded"
+                        className="p-1 hover:bg-gray-200 rounded-full transition-colors"
                       >
                         <Plus className="w-4 h-4" />
                       </button>
                     </div>
                     <button
                       onClick={() => removeFromCart(item.id)}
-                      className="p-1 text-red-600 hover:bg-red-50 rounded"
+                      className="p-1 text-red-600 hover:bg-red-50 rounded-full transition-colors"
                     >
-                      <X className="w-4 h-4" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 ))}
               </div>
 
-              <div className="border-t pt-4 mb-6">
-                <div className="flex justify-between text-lg font-bold">
+              <div className="border-t border-gray-200 pt-4 mb-6">
+                <div className="flex justify-between mb-2">
+                  <span className="text-gray-600">Subtotal</span>
+                  <span className="font-medium">{formatCurrency(getCartTotal())}</span>
+                </div>
+                <div className="flex justify-between mb-2">
+                  <span className="text-gray-600">Tax (10%)</span>
+                  <span className="font-medium">{formatCurrency(getCartTotal() * 0.1)}</span>
+                </div>
+                <div className="flex justify-between mb-2">
+                  <span className="text-gray-600">Delivery Fee</span>
+                  <span className="font-medium">{formatCurrency(5)}</span>
+                </div>
+                <div className="flex justify-between text-lg font-bold border-t border-gray-200 pt-2 mt-2">
                   <span>Total</span>
-                  <span className="text-green-600">{formatCurrency(getCartTotal())}</span>
+                  <span className="text-green-600">{formatCurrency(getCartTotal() + (getCartTotal() * 0.1) + 5)}</span>
                 </div>
               </div>
 
-              <button
-                onClick={() => {
-                  setShowCart(false);
-                  setShowOrderForm(true);
-                }}
-                disabled={!selectedBooking}
-                className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-              >
-                {selectedBooking ? 'Proceed to Checkout' : 'Select Room First'}
-              </button>
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    setShowCart(false);
+                    setShowOrderForm(true);
+                  }}
+                  disabled={!selectedBooking}
+                  className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center space-x-2 transition-colors"
+                >
+                  <CheckCircle className="w-5 h-5" />
+                  <span>{selectedBooking ? 'Proceed to Checkout' : 'Select Room First'}</span>
+                </button>
+                
+                <button
+                  onClick={clearCart}
+                  className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-lg hover:bg-gray-200 font-medium transition-colors"
+                >
+                  Clear Cart
+                </button>
+              </div>
             </>
           )}
         </div>
@@ -697,12 +744,12 @@ export function RoomServiceModule({ filters }: RoomServiceModuleProps) {
           {cart.length > 0 && (
             <button
               onClick={() => setShowCart(true)}
-              className="relative flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              className="relative flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
             >
               <ShoppingCart className="w-4 h-4" />
-              <span>Cart ({cart.length})</span>
+              <span>Cart ({getCartItemCount()})</span>
               <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {cart.reduce((sum, item) => sum + item.quantity, 0)}
+                {cart.length}
               </span>
             </button>
           )}
@@ -792,70 +839,186 @@ export function RoomServiceModule({ filters }: RoomServiceModuleProps) {
 
           {/* Menu Items */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredItems.map((item) => (
-              <div key={item.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
-                <div className="aspect-video bg-gray-200 relative">
-                  <img
-                    src={item.image}
-                    alt={item.name}
-                    className="w-full h-full object-cover"
-                  />
-                  {item.popular && (
-                    <div className="absolute top-4 left-4">
-                      <span className="flex items-center space-x-1 px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">
-                        <Star className="w-3 h-3" />
-                        <span>Popular</span>
+            {filteredItems.map((item) => {
+              const isInCart = cart.some(cartItem => cartItem.menuItemId === item.id);
+              const cartItem = cart.find(cartItem => cartItem.menuItemId === item.id);
+              const isFavorite = favorites.includes(item.id);
+              
+              return (
+                <div key={item.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+                  <div className="aspect-video bg-gray-200 relative">
+                    <img
+                      src={item.image}
+                      alt={item.name}
+                      className="w-full h-full object-cover"
+                    />
+                    {item.popular && (
+                      <div className="absolute top-4 left-4">
+                        <span className="flex items-center space-x-1 px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">
+                          <Star className="w-3 h-3" />
+                          <span>Popular</span>
+                        </span>
+                      </div>
+                    )}
+                    <div className="absolute top-4 right-4">
+                      <span className="px-2 py-1 bg-white text-gray-700 rounded-full text-xs font-semibold">
+                        {item.preparationTime} min
                       </span>
                     </div>
-                  )}
-                  <div className="absolute top-4 right-4">
-                    <span className="px-2 py-1 bg-white text-gray-700 rounded-full text-xs font-semibold">
-                      {item.preparationTime} min
-                    </span>
+                    <button 
+                      onClick={() => toggleFavorite(item.id)}
+                      className="absolute bottom-4 right-4 p-2 bg-white rounded-full shadow-md hover:bg-gray-100 transition-colors"
+                    >
+                      <Heart className={`w-5 h-5 ${isFavorite ? 'text-red-500 fill-red-500' : 'text-gray-400'}`} />
+                    </button>
+                  </div>
+                  
+                  <div className="p-6">
+                    <div className="flex items-start justify-between mb-2">
+                      <h3 className="text-lg font-bold text-gray-900">{item.name}</h3>
+                      <span className="text-lg font-semibold text-green-600">{formatCurrency(item.price)}</span>
+                    </div>
+                    
+                    <p className="text-gray-600 text-sm mb-4">{item.description}</p>
+                    
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex flex-wrap gap-2">
+                        {item.dietary.map((diet) => (
+                          <span key={diet} className="flex items-center space-x-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
+                            <Leaf className="w-3 h-3" />
+                            <span>{diet}</span>
+                          </span>
+                        ))}
+                        {item.spicyLevel && (
+                          <span className="flex items-center space-x-1 px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs">
+                            <Flame className="w-3 h-3" />
+                            <span>Spicy {item.spicyLevel}/5</span>
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-1 text-gray-500">
+                        <Clock className="w-4 h-4" />
+                        <span className="text-sm">{item.preparationTime}m</span>
+                      </div>
+                    </div>
+                    
+                    {isInCart ? (
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3 border border-gray-200 rounded-lg px-2">
+                          <button
+                            onClick={() => updateQuantity(cartItem!.id, cartItem!.quantity - 1)}
+                            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <span className="font-medium text-gray-900">{cartItem?.quantity}</span>
+                          <button
+                            onClick={() => updateQuantity(cartItem!.id, cartItem!.quantity + 1)}
+                            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => removeFromCart(cartItem!.id)}
+                          className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => addToCart(item)}
+                        disabled={!selectedBooking}
+                        className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Add to Cart</span>
+                      </button>
+                    )}
                   </div>
                 </div>
-                
-                <div className="p-6">
-                  <div className="flex items-start justify-between mb-2">
-                    <h3 className="text-lg font-bold text-gray-900">{item.name}</h3>
-                    <span className="text-lg font-semibold text-green-600">{formatCurrency(item.price)}</span>
+              );
+            })}
+          </div>
+
+          {/* Quick Add Section - Popular Items */}
+          <div className="mt-8 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+              <Star className="w-5 h-5 text-yellow-500" />
+              <span>Popular Items</span>
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {menuItems.filter(item => item.popular).map((item) => (
+                <div key={item.id} className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:border-indigo-200 hover:bg-indigo-50 transition-colors">
+                  <img 
+                    src={item.image} 
+                    alt={item.name} 
+                    className="w-16 h-16 object-cover rounded-lg"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-gray-900 text-sm">{item.name}</h4>
+                    <p className="text-sm text-green-600">{formatCurrency(item.price)}</p>
                   </div>
-                  
-                  <p className="text-gray-600 text-sm mb-4">{item.description}</p>
-                  
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex flex-wrap gap-2">
-                      {item.dietary.map((diet) => (
-                        <span key={diet} className="flex items-center space-x-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
-                          <Leaf className="w-3 h-3" />
-                          <span>{diet}</span>
-                        </span>
-                      ))}
-                      {item.spicyLevel && (
-                        <span className="flex items-center space-x-1 px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs">
-                          <Flame className="w-3 h-3" />
-                          <span>Spicy {item.spicyLevel}/5</span>
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center space-x-1 text-gray-500">
-                      <Clock className="w-4 h-4" />
-                      <span className="text-sm">{item.preparationTime}m</span>
-                    </div>
-                  </div>
-                  
                   <button
                     onClick={() => addToCart(item)}
                     disabled={!selectedBooking}
-                    className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="p-2 bg-indigo-100 text-indigo-700 rounded-full hover:bg-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <Plus className="w-4 h-4" />
-                    <span>Add to Cart</span>
                   </button>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
+
+          {/* Favorites Section */}
+          {favorites.length > 0 && (
+            <div className="mt-8 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+                <Heart className="w-5 h-5 text-red-500" />
+                <span>Your Favorites</span>
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {menuItems.filter(item => favorites.includes(item.id)).map((item) => (
+                  <div key={item.id} className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:border-red-200 hover:bg-red-50 transition-colors">
+                    <img 
+                      src={item.image} 
+                      alt={item.name} 
+                      className="w-16 h-16 object-cover rounded-lg"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-gray-900 text-sm">{item.name}</h4>
+                      <p className="text-sm text-green-600">{formatCurrency(item.price)}</p>
+                    </div>
+                    <button
+                      onClick={() => addToCart(item)}
+                      disabled={!selectedBooking}
+                      className="p-2 bg-red-100 text-red-700 rounded-full hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Floating Cart Button for Mobile */}
+          {cart.length > 0 && !showCart && (
+            <div className="fixed bottom-6 right-6 md:hidden">
+              <button
+                onClick={() => setShowCart(true)}
+                className="flex items-center space-x-2 px-4 py-3 bg-green-600 text-white rounded-full shadow-lg hover:bg-green-700 transition-colors"
+              >
+                <ShoppingCart className="w-5 h-5" />
+                <span className="font-medium">{getCartItemCount()} items</span>
+                <span className="font-bold">{formatCurrency(getCartTotal())}</span>
+              </button>
+            </div>
+          )}
         </>
       )}
 
