@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Currency, HotelSettings } from '../types';
+import { useBranding } from './BrandingContext';
 
 interface CurrencyContextType {
   currencies: Currency[];
@@ -29,7 +30,7 @@ const WORLD_CURRENCIES: Currency[] = [
   
   // Asian Currencies
   { code: 'CNY', name: 'Chinese Yuan', symbol: '¥', rate: 6.45 },
-  { code: 'INR', name: 'Indian Rupee', symbol: '₹', rate: 74.5 },
+  { code: 'INR', name: 'Indian Rupee', symbol: '₹', rate: 83.5 },
   { code: 'KRW', name: 'South Korean Won', symbol: '₩', rate: 1180.0 },
   { code: 'SGD', name: 'Singapore Dollar', symbol: 'S$', rate: 1.35 },
   { code: 'HKD', name: 'Hong Kong Dollar', symbol: 'HK$', rate: 7.8 },
@@ -111,6 +112,7 @@ const DEFAULT_HOTEL_SETTINGS: HotelSettings = {
 };
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
+  const { branding } = useBranding();
   const [currencies, setCurrencies] = useState<Currency[]>(WORLD_CURRENCIES);
   const [hotelSettings, setHotelSettings] = useState<HotelSettings>(DEFAULT_HOTEL_SETTINGS);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -122,6 +124,16 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
       setHotelSettings(JSON.parse(savedSettings));
     }
   }, []);
+
+  // Update currency settings when branding preferred currency changes
+  useEffect(() => {
+    if (branding.preferredCurrency && branding.preferredCurrency !== hotelSettings.baseCurrency) {
+      updateHotelSettings({
+        baseCurrency: branding.preferredCurrency,
+        displayCurrency: branding.preferredCurrency
+      });
+    }
+  }, [branding.preferredCurrency]);
 
   const updateHotelSettings = (newSettings: Partial<HotelSettings>) => {
     const updatedSettings = { ...hotelSettings, ...newSettings };

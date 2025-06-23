@@ -83,7 +83,8 @@ const DEFAULT_BRANDING: HotelBranding = {
   },
   customCSS: '',
   lastUpdated: new Date().toISOString(),
-  updatedBy: 'system'
+  updatedBy: 'system',
+  preferredCurrency: 'USD'
 };
 
 export function BrandingProvider({ children }: { children: ReactNode }) {

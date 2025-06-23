@@ -97,6 +97,7 @@ export interface HotelBranding {
   customCSS?: string;
   lastUpdated: string;
   updatedBy: string;
+  preferredCurrency?: string;
 }
 
 export interface Room {

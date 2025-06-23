@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useBranding } from '../context/BrandingContext';
 import { useAuth } from '../context/AuthContext';
+import { useCurrency } from '../context/CurrencyContext';
 import { 
   Palette, 
   Upload, 
@@ -20,12 +21,14 @@ import {
   FileText,
   Smartphone,
   Monitor,
-  Tablet
+  Tablet,
+  DollarSign
 } from 'lucide-react';
 
 export function BrandingSettings() {
   const { branding, updateBranding, resetToDefaults, uploadLogo, uploadFavicon, exportBranding, importBranding, formatDateTime, getCurrentDateTime, getTimezoneOffset } = useBranding();
   const { user } = useAuth();
+  const { currencies, hotelSettings, updateHotelSettings } = useCurrency();
   const [activeTab, setActiveTab] = useState<'general' | 'design' | 'contact' | 'policies' | 'preview'>('general');
   const [previewDevice, setPreviewDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
 
@@ -81,6 +84,14 @@ export function BrandingSettings() {
       };
       reader.readAsText(file);
     }
+  };
+
+  const handleCurrencyChange = (currencyCode: string) => {
+    updateBranding({ preferredCurrency: currencyCode });
+    updateHotelSettings({
+      baseCurrency: currencyCode,
+      displayCurrency: currencyCode
+    });
   };
 
   const ColorPicker = ({ label, value, onChange }: { label: string; value: string; onChange: (color: string) => void }) => (
@@ -366,9 +377,24 @@ export function BrandingSettings() {
           </div>
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-6">Operating Hours & Timezone</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">Currency & Operating Hours</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Preferred Currency</label>
+                <select
+                  value={branding.preferredCurrency || hotelSettings.baseCurrency}
+                  onChange={(e) => handleCurrencyChange(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                >
+                  {currencies.map(currency => (
+                    <option key={currency.code} value={currency.code}>
+                      {currency.code} - {currency.name} ({currency.symbol})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Check-in Time</label>
                 <input
@@ -976,6 +1002,14 @@ export function BrandingSettings() {
                           <p>{branding.address.city}, {branding.address.state} {branding.address.zipCode}</p>
                         </div>
                       </div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <h3 className="font-semibold text-gray-900 text-sm">Currency</h3>
+                    <div className="flex items-center space-x-2 text-xs text-gray-600">
+                      <DollarSign className="w-3 h-3" />
+                      <span>{branding.preferredCurrency || hotelSettings.baseCurrency}</span>
                     </div>
                   </div>
                 </div>
