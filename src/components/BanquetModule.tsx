@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useHotel } from '../context/HotelContext';
 import { useCurrency } from '../context/CurrencyContext';
+import { useBranding } from '../context/BrandingContext';
 import { BanquetHallManagement } from './BanquetHallManagement';
 import { 
   Users, 
@@ -22,13 +23,10 @@ import {
   Receipt,
   Edit,
   Trash2,
-  FileText,
   Download,
   Printer,
+  CheckCircle,
   CreditCard,
-  DollarSign as Cash,
-  Building,
-  Check,
   AlertCircle
 } from 'lucide-react';
 import { BanquetHall, BanquetBooking } from '../types';
@@ -54,22 +52,21 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
     addRoomCharge
   } = useHotel();
   const { formatCurrency, hotelSettings } = useCurrency();
+  const { branding, formatDateTime, getCurrentDateTime } = useBranding();
   
   const [view, setView] = useState<'halls' | 'bookings'>('halls');
   const [showBookingForm, setShowBookingForm] = useState(false);
   const [showEditBookingForm, setShowEditBookingForm] = useState(false);
-  const [editingBooking, setEditingBooking] = useState<BanquetBooking | null>(null);
   const [showChargeForm, setShowChargeForm] = useState(false);
   const [showHallManagement, setShowHallManagement] = useState(false);
+  const [showInvoice, setShowInvoice] = useState(false);
   const [selectedHall, setSelectedHall] = useState<BanquetHall | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<BanquetBooking | null>(null);
   const [showHallDetails, setShowHallDetails] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState<string>('');
   const [bookingError, setBookingError] = useState<string>('');
-  const [showInvoice, setShowInvoice] = useState(false);
-  const [selectedBooking, setSelectedBooking] = useState<BanquetBooking | null>(null);
-  const [invoiceData, setInvoiceData] = useState<any>(null);
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   // Apply filters from dashboard navigation
   useEffect(() => {
@@ -93,6 +90,15 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
       case 'completed': return 'bg-gray-100 text-gray-800';
       case 'cancelled': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getPaymentStatusColor = (status?: string) => {
+    switch (status) {
+      case 'paid': return 'bg-green-100 text-green-800';
+      case 'partial': return 'bg-yellow-100 text-yellow-800';
+      case 'pending':
+      default: return 'bg-red-100 text-red-800';
     }
   };
 
@@ -139,199 +145,29 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
     ? banquetBookings.filter(booking => booking.date === today)
     : banquetBookings;
 
-  // Generate invoice data for a booking
-  const generateInvoiceData = (booking: BanquetBooking) => {
-    const hall = banquetHalls.find(h => h.id === booking.hallId);
-    if (!hall) return null;
-
-    // Calculate hours
-    const startTime = new Date(`2000-01-01T${booking.startTime}`);
-    const endTime = new Date(`2000-01-01T${booking.endTime}`);
-    let hours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
-    if (hours < 0) hours += 24; // Handle cases where end time is next day
-    
-    // Calculate base hall rental
-    const hallRental = hall.rate * hours;
-    
-    // Additional services (example data - in a real app, these would be stored with the booking)
-    const additionalServices = [
-      { description: 'Catering Service (per person)', quantity: booking.attendees, unitPrice: 1200 },
-      { description: 'Decoration Package', quantity: 1, unitPrice: 15000 },
-      { description: 'Audio/Visual Equipment', quantity: 1, unitPrice: 8000 }
-    ];
-    
-    // Calculate subtotal
-    const servicesTotal = additionalServices.reduce((sum, service) => sum + (service.quantity * service.unitPrice), 0);
-    const subtotal = hallRental + servicesTotal;
-    
-    // Calculate tax (18% GST)
-    const taxRate = 0.18;
-    const taxAmount = subtotal * taxRate;
-    
-    // Calculate total
-    const total = subtotal + taxAmount;
-    
-    // Generate invoice number
-    const invoiceNumber = `INV-BQ-${new Date().getFullYear()}-${booking.id.slice(-4)}`;
-    
-    return {
-      invoiceNumber,
-      date: new Date().toISOString().split('T')[0],
-      dueDate: booking.date, // Due by event date
-      clientName: booking.clientName,
-      clientEmail: booking.clientEmail,
-      clientPhone: booking.clientPhone,
-      eventName: booking.eventName,
-      eventDate: booking.date,
-      eventTime: `${booking.startTime} - ${booking.endTime}`,
-      hallName: hall.name,
-      attendees: booking.attendees,
-      items: [
-        {
-          description: `${hall.name} Rental (${hours} hours)`,
-          quantity: hours,
-          unitPrice: hall.rate,
-          total: hallRental
-        },
-        ...additionalServices.map(service => ({
-          description: service.description,
-          quantity: service.quantity,
-          unitPrice: service.unitPrice,
-          total: service.quantity * service.unitPrice
-        }))
-      ],
-      subtotal,
-      taxRate,
-      taxAmount,
-      total,
-      currency: hotelSettings.baseCurrency
-    };
+  const generateInvoiceNumber = () => {
+    const prefix = "BQ";
+    const year = new Date().getFullYear().toString().slice(-2);
+    const month = (new Date().getMonth() + 1).toString().padStart(2, '0');
+    const randomNum = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    return `${prefix}${year}${month}-${randomNum}`;
   };
 
-  const generatePDF = async () => {
-    if (!invoiceData) return;
-    
-    const invoiceElement = document.getElementById('banquet-invoice');
-    if (!invoiceElement) return;
-    
-    setIsGeneratingPdf(true);
-    
-    try {
-      // Create a temporary container for PDF generation
-      const tempContainer = document.createElement('div');
-      tempContainer.style.position = 'absolute';
-      tempContainer.style.left = '-9999px';
-      tempContainer.style.top = '0';
-      tempContainer.style.width = '210mm'; // A4 width
-      tempContainer.style.backgroundColor = 'white';
-      tempContainer.style.fontFamily = 'Arial, sans-serif';
-      tempContainer.style.fontSize = '12px';
-      tempContainer.style.lineHeight = '1.4';
-      tempContainer.style.color = '#000';
-      
-      // Clone the invoice content
-      const invoiceClone = invoiceElement.cloneNode(true) as HTMLElement;
-      invoiceClone.style.padding = '20px';
-      invoiceClone.style.maxWidth = 'none';
-      invoiceClone.style.boxShadow = 'none';
-      invoiceClone.style.border = 'none';
-      invoiceClone.style.borderRadius = '0';
-      
-      tempContainer.appendChild(invoiceClone);
-      document.body.appendChild(tempContainer);
+  const markAsPaid = (bookingId: string, paymentMethod: 'cash' | 'card' | 'bank-transfer' | 'room-charge') => {
+    const booking = banquetBookings.find(b => b.id === bookingId);
+    if (!booking) return;
 
-      // Generate canvas from HTML
-      const canvas = await html2canvas(tempContainer, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        width: 794, // A4 width in pixels at 96 DPI
-        height: 1123 // A4 height in pixels at 96 DPI
-      });
+    const invoiceNumber = booking.invoiceNumber || generateInvoiceNumber();
 
-      // Create PDF
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgData = canvas.toDataURL('image/png');
-      const imgWidth = 210; // A4 width in mm
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-      
-      // Save PDF
-      const fileName = `Banquet_Invoice_${invoiceData.invoiceNumber}.pdf`;
-      pdf.save(fileName);
+    updateBanquetBooking(bookingId, {
+      paymentStatus: 'paid',
+      paymentMethod: paymentMethod,
+      paymentDate: new Date().toISOString().split('T')[0],
+      invoiceNumber: invoiceNumber,
+      invoiceGenerated: true
+    });
 
-      // Clean up
-      document.body.removeChild(tempContainer);
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      alert('Error generating PDF. Please try again.');
-    } finally {
-      setIsGeneratingPdf(false);
-    }
-  };
-
-  const printInvoice = () => {
-    const invoiceElement = document.getElementById('banquet-invoice');
-    if (!invoiceElement) return;
-
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
-    const invoiceHTML = invoiceElement.innerHTML;
-    
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Banquet Invoice - ${invoiceData?.invoiceNumber}</title>
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              margin: 0;
-              padding: 20px;
-              font-size: 12px;
-              line-height: 1.4;
-              color: #000;
-            }
-            .no-print { display: none !important; }
-            table { border-collapse: collapse; width: 100%; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #f5f5f5; }
-            .text-right { text-align: right; }
-            .font-bold { font-weight: bold; }
-            .text-lg { font-size: 14px; }
-            .text-xl { font-size: 16px; }
-            .text-2xl { font-size: 18px; }
-            .text-3xl { font-size: 20px; }
-            .mb-2 { margin-bottom: 8px; }
-            .mb-4 { margin-bottom: 16px; }
-            .mb-6 { margin-bottom: 24px; }
-            .mt-4 { margin-top: 16px; }
-            .mt-6 { margin-top: 24px; }
-            .p-4 { padding: 16px; }
-            .border { border: 1px solid #ddd; }
-            .bg-gray-50 { background-color: #f9f9f9; }
-            .grid { display: grid; }
-            .grid-cols-2 { grid-template-columns: 1fr 1fr; }
-            .gap-4 { gap: 16px; }
-            @media print {
-              body { margin: 0; }
-              .no-print { display: none !important; }
-            }
-          </style>
-        </head>
-        <body>
-          ${invoiceHTML}
-        </body>
-      </html>
-    `);
-    
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-    printWindow.close();
+    alert(`Booking #${bookingId.slice(-6)} has been marked as paid via ${paymentMethod.replace('-', ' ')}.`);
   };
 
   const ChargeForm = () => {
@@ -599,18 +435,18 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
     );
   };
 
-  const BookingForm = () => {
-    const initialFormData = editingBooking ? {
-      hallId: editingBooking.hallId,
-      eventName: editingBooking.eventName,
-      clientName: editingBooking.clientName,
-      clientEmail: editingBooking.clientEmail,
-      clientPhone: editingBooking.clientPhone,
-      date: editingBooking.date,
-      startTime: editingBooking.startTime,
-      endTime: editingBooking.endTime,
-      attendees: editingBooking.attendees.toString(),
-      specialRequirements: editingBooking.specialRequirements || ''
+  const BookingForm = ({ isEditing = false }) => {
+    const initialFormData = isEditing && selectedBooking ? {
+      hallId: selectedBooking.hallId,
+      eventName: selectedBooking.eventName,
+      clientName: selectedBooking.clientName,
+      clientEmail: selectedBooking.clientEmail,
+      clientPhone: selectedBooking.clientPhone,
+      date: selectedBooking.date,
+      startTime: selectedBooking.startTime,
+      endTime: selectedBooking.endTime,
+      attendees: selectedBooking.attendees.toString(),
+      specialRequirements: selectedBooking.specialRequirements || ''
     } : {
       hallId: selectedHall?.id || '',
       eventName: '',
@@ -636,7 +472,7 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
         formData.date, 
         formData.startTime, 
         formData.endTime,
-        editingBooking?.id
+        isEditing ? selectedBooking?.id : undefined
       )) {
         setBookingError('This hall is already booked for the selected date and time. Please choose a different time or date.');
         return;
@@ -648,28 +484,38 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
            new Date(`1970-01-01T${formData.startTime}`).getTime()) / (1000 * 60 * 60)
         );
         
-        const bookingData = {
-          hallId: formData.hallId,
-          eventName: formData.eventName,
-          clientName: formData.clientName,
-          clientEmail: formData.clientEmail,
-          clientPhone: formData.clientPhone,
-          date: formData.date,
-          startTime: formData.startTime,
-          endTime: formData.endTime,
-          attendees: parseInt(formData.attendees),
-          totalAmount: hall.rate * hours,
-          currency: hotelSettings.baseCurrency,
-          specialRequirements: formData.specialRequirements,
-          status: 'confirmed' as const
-        };
-
-        if (editingBooking) {
-          updateBanquetBooking(editingBooking.id, bookingData);
+        if (isEditing && selectedBooking) {
+          updateBanquetBooking(selectedBooking.id, {
+            hallId: formData.hallId,
+            eventName: formData.eventName,
+            clientName: formData.clientName,
+            clientEmail: formData.clientEmail,
+            clientPhone: formData.clientPhone,
+            date: formData.date,
+            startTime: formData.startTime,
+            endTime: formData.endTime,
+            attendees: parseInt(formData.attendees),
+            totalAmount: hall.rate * hours,
+            specialRequirements: formData.specialRequirements,
+          });
           setShowEditBookingForm(false);
-          setEditingBooking(null);
         } else {
-          addBanquetBooking(bookingData);
+          addBanquetBooking({
+            hallId: formData.hallId,
+            eventName: formData.eventName,
+            clientName: formData.clientName,
+            clientEmail: formData.clientEmail,
+            clientPhone: formData.clientPhone,
+            date: formData.date,
+            startTime: formData.startTime,
+            endTime: formData.endTime,
+            attendees: parseInt(formData.attendees),
+            totalAmount: hall.rate * hours,
+            currency: hotelSettings.baseCurrency,
+            specialRequirements: formData.specialRequirements,
+            status: 'confirmed',
+            paymentStatus: 'pending'
+          });
           setShowBookingForm(false);
         }
         
@@ -684,7 +530,7 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white rounded-2xl p-8 max-w-2xl w-full m-4 max-h-[90vh] overflow-y-auto">
-          <h3 className="text-2xl font-bold mb-6">{editingBooking ? 'Edit Banquet Booking' : 'New Banquet Booking'}</h3>
+          <h3 className="text-2xl font-bold mb-6">{isEditing ? 'Edit Banquet Booking' : 'New Banquet Booking'}</h3>
           
           {bookingError && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
@@ -816,12 +662,7 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
               <button
                 type="button"
                 onClick={() => {
-                  if (editingBooking) {
-                    setShowEditBookingForm(false);
-                    setEditingBooking(null);
-                  } else {
-                    setShowBookingForm(false);
-                  }
+                  isEditing ? setShowEditBookingForm(false) : setShowBookingForm(false);
                   setBookingError('');
                 }}
                 className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
@@ -832,7 +673,7 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
                 type="submit"
                 className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
               >
-                {editingBooking ? 'Update Booking' : 'Create Booking'}
+                {isEditing ? 'Update Booking' : 'Create Booking'}
               </button>
             </div>
           </form>
@@ -842,32 +683,204 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
   };
 
   const InvoiceModal = () => {
-    if (!selectedBooking || !invoiceData) return null;
-    
+    if (!selectedBooking) return null;
+
     const hall = banquetHalls.find(h => h.id === selectedBooking.hallId);
+    const invoiceRef = React.useRef<HTMLDivElement>(null);
+    const invoiceNumber = selectedBooking.invoiceNumber || generateInvoiceNumber();
+    const invoiceDate = formatDateTime(getCurrentDateTime());
     
+    // Calculate hours and costs
+    const hours = Math.ceil(
+      (new Date(`1970-01-01T${selectedBooking.endTime}`).getTime() - 
+       new Date(`1970-01-01T${selectedBooking.startTime}`).getTime()) / (1000 * 60 * 60)
+    );
+    
+    const hallRental = hall ? hall.rate * hours : 0;
+    const setupFee = 5000; // Example setup fee
+    const cateringCost = selectedBooking.attendees * 1500; // Example catering cost per person
+    const equipmentRental = 10000; // Example equipment rental
+    
+    const subtotal = hallRental + setupFee + cateringCost + equipmentRental;
+    const gstRate = 0.18; // 18% GST
+    const gstAmount = subtotal * gstRate;
+    const totalAmount = subtotal + gstAmount;
+
+    const generatePDF = async () => {
+      if (!invoiceRef.current) return;
+
+      setIsGeneratingPDF(true);
+      try {
+        // Create a temporary container for PDF generation
+        const tempContainer = document.createElement('div');
+        tempContainer.style.position = 'absolute';
+        tempContainer.style.left = '-9999px';
+        tempContainer.style.top = '0';
+        tempContainer.style.width = '210mm'; // A4 width
+        tempContainer.style.backgroundColor = 'white';
+        tempContainer.style.fontFamily = 'Arial, sans-serif';
+        tempContainer.style.fontSize = '12px';
+        tempContainer.style.lineHeight = '1.4';
+        tempContainer.style.color = '#000';
+        
+        // Clone the invoice content
+        const invoiceClone = invoiceRef.current.cloneNode(true) as HTMLElement;
+        invoiceClone.style.padding = '20px';
+        invoiceClone.style.maxWidth = 'none';
+        invoiceClone.style.boxShadow = 'none';
+        invoiceClone.style.border = 'none';
+        invoiceClone.style.borderRadius = '0';
+        
+        tempContainer.appendChild(invoiceClone);
+        document.body.appendChild(tempContainer);
+
+        // Generate canvas from HTML
+        const canvas = await html2canvas(tempContainer, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          width: 794, // A4 width in pixels at 96 DPI
+          height: 1123 // A4 height in pixels at 96 DPI
+        });
+
+        // Create PDF
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const imgData = canvas.toDataURL('image/png');
+        const imgWidth = 210; // A4 width in mm
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        
+        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+        
+        // Save PDF
+        const fileName = `Invoice_${invoiceNumber}_${selectedBooking.clientName.replace(/\s+/g, '_')}.pdf`;
+        pdf.save(fileName);
+
+        // Clean up
+        document.body.removeChild(tempContainer);
+
+        // Update booking to mark invoice as generated
+        if (!selectedBooking.invoiceGenerated) {
+          updateBanquetBooking(selectedBooking.id, {
+            invoiceGenerated: true,
+            invoiceNumber: invoiceNumber
+          });
+        }
+      } catch (error) {
+        console.error('Error generating PDF:', error);
+        alert('Error generating PDF. Please try again.');
+      } finally {
+        setIsGeneratingPDF(false);
+      }
+    };
+
+    const printInvoice = () => {
+      if (!invoiceRef.current) return;
+
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const invoiceHTML = invoiceRef.current.innerHTML;
+      
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Invoice - ${invoiceNumber}</title>
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 20px;
+                font-size: 12px;
+                line-height: 1.4;
+                color: #000;
+              }
+              .no-print { display: none !important; }
+              table { border-collapse: collapse; width: 100%; }
+              th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+              th { background-color: #f5f5f5; }
+              .text-right { text-align: right; }
+              .font-bold { font-weight: bold; }
+              .text-lg { font-size: 14px; }
+              .text-xl { font-size: 16px; }
+              .text-2xl { font-size: 18px; }
+              .text-3xl { font-size: 20px; }
+              .mb-2 { margin-bottom: 8px; }
+              .mb-4 { margin-bottom: 16px; }
+              .mb-6 { margin-bottom: 24px; }
+              .mt-4 { margin-top: 16px; }
+              .mt-6 { margin-top: 24px; }
+              .p-4 { padding: 16px; }
+              .border { border: 1px solid #ddd; }
+              .bg-gray-50 { background-color: #f9f9f9; }
+              .grid { display: grid; }
+              .grid-cols-2 { grid-template-columns: 1fr 1fr; }
+              .gap-4 { gap: 16px; }
+              @media print {
+                body { margin: 0; }
+                .no-print { display: none !important; }
+              }
+            </style>
+          </head>
+          <body>
+            ${invoiceHTML}
+          </body>
+        </html>
+      `);
+      
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+      printWindow.close();
+
+      // Update booking to mark invoice as generated
+      if (!selectedBooking.invoiceGenerated) {
+        updateBanquetBooking(selectedBooking.id, {
+          invoiceGenerated: true,
+          invoiceNumber: invoiceNumber
+        });
+      }
+    };
+
+    const handleMarkAsPaid = (method: 'cash' | 'card' | 'bank-transfer' | 'room-charge') => {
+      markAsPaid(selectedBooking.id, method);
+      setShowInvoice(false);
+    };
+
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200">
             <div className="flex items-center space-x-3">
-              <FileText className="w-6 h-6 text-indigo-600" />
+              <Receipt className="w-6 h-6 text-indigo-600" />
               <h2 className="text-2xl font-bold text-gray-900">Banquet Event Invoice</h2>
             </div>
-            <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setShowInvoice(false)}
+              className="p-2 hover:bg-gray-100 rounded-lg"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="p-6 border-b border-gray-200 bg-gray-50">
+            <div className="flex flex-wrap gap-3">
               <button
                 onClick={generatePDF}
-                disabled={isGeneratingPdf}
-                className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                disabled={isGeneratingPDF}
+                className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
               >
-                {isGeneratingPdf ? (
+                {isGeneratingPDF ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                 ) : (
                   <Download className="w-4 h-4" />
                 )}
                 <span>Download PDF</span>
               </button>
+
               <button
                 onClick={printInvoice}
                 className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -875,29 +888,72 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
                 <Printer className="w-4 h-4" />
                 <span>Print</span>
               </button>
-              <button
-                onClick={() => setShowInvoice(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg"
-              >
-                <X className="w-6 h-6" />
-              </button>
+
+              {selectedBooking.paymentStatus !== 'paid' && (
+                <div className="ml-auto">
+                  <div className="relative group">
+                    <button
+                      className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      <span>Mark as Paid</span>
+                    </button>
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg hidden group-hover:block z-10">
+                      <div className="py-1">
+                        <button 
+                          onClick={() => handleMarkAsPaid('cash')}
+                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        >
+                          Cash Payment
+                        </button>
+                        <button 
+                          onClick={() => handleMarkAsPaid('card')}
+                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        >
+                          Card Payment
+                        </button>
+                        <button 
+                          onClick={() => handleMarkAsPaid('bank-transfer')}
+                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        >
+                          Bank Transfer
+                        </button>
+                        <button 
+                          onClick={() => handleMarkAsPaid('room-charge')}
+                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        >
+                          Charge to Room
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Invoice Content */}
           <div className="p-6">
-            <div id="banquet-invoice" className="bg-white max-w-4xl mx-auto">
+            <div ref={invoiceRef} className="bg-white max-w-4xl mx-auto">
               {/* Header with Logo and Hotel Info */}
               <div className="border-b-2 border-gray-300 pb-6 mb-6">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center space-x-4">
-                    <div className="w-16 h-16 bg-indigo-600 rounded-lg flex items-center justify-center">
-                      <Building className="w-10 h-10 text-white" />
-                    </div>
+                    {branding.logoUrl ? (
+                      <img
+                        src={branding.logoUrl}
+                        alt={`${branding.hotelName} Logo`}
+                        className="h-16 w-auto"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-2xl font-bold">
+                        {branding.hotelName.charAt(0)}
+                      </div>
+                    )}
                     <div>
-                      <h1 className="text-3xl font-bold text-gray-900">Harmony Suites</h1>
+                      <h1 className="text-3xl font-bold text-gray-900">{branding.hotelName}</h1>
                       <div className="flex items-center space-x-1 mt-1">
-                        {Array.from({ length: 5 }, (_, i) => (
+                        {Array.from({ length: branding.starRating }, (_, i) => (
                           <span key={i} className="text-yellow-400 text-lg">★</span>
                         ))}
                       </div>
@@ -905,8 +961,11 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
                   </div>
                   <div className="text-right">
                     <h2 className="text-2xl font-bold text-gray-900">INVOICE</h2>
-                    <p className="text-lg font-semibold text-gray-700">#{invoiceData.invoiceNumber}</p>
-                    <p className="text-sm text-gray-600">Date: {invoiceData.date}</p>
+                    <p className="text-lg font-semibold text-gray-700">#{invoiceNumber}</p>
+                    <p className="text-sm text-gray-600">Date: {invoiceDate}</p>
+                    <p className={`mt-2 px-3 py-1 inline-block rounded-full text-sm font-semibold ${getPaymentStatusColor(selectedBooking.paymentStatus)}`}>
+                      {selectedBooking.paymentStatus ? selectedBooking.paymentStatus.toUpperCase() : 'PENDING'}
+                    </p>
                   </div>
                 </div>
 
@@ -916,32 +975,38 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
                     <div className="text-sm text-gray-600 space-y-1">
                       <div className="flex items-center space-x-2">
                         <MapPin className="w-4 h-4" />
-                        <span>123 Luxury Avenue, Metropolitan City</span>
+                        <span>{branding.address.street}</span>
                       </div>
                       <div className="ml-6">
-                        State, 12345, Country
+                        {branding.address.city}, {branding.address.state} {branding.address.zipCode}
                       </div>
+                      <div className="ml-6">{branding.address.country}</div>
                       <div className="flex items-center space-x-2 mt-2">
                         <Phone className="w-4 h-4" />
-                        <span>+1 (555) 123-4567</span>
+                        <span>{branding.contact.phone}</span>
                       </div>
                       <div className="flex items-center space-x-2">
                         <Mail className="w-4 h-4" />
-                        <span>info@harmonysuite.com</span>
+                        <span>{branding.contact.email}</span>
                       </div>
+                      {branding.licenseNumber && (
+                        <div className="mt-2 text-xs">
+                          GST No: {branding.licenseNumber}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-2">Bill To</h3>
                     <div className="text-sm text-gray-600 space-y-1">
-                      <div className="font-medium">{invoiceData.clientName}</div>
+                      <div className="font-medium text-gray-900">{selectedBooking.clientName}</div>
                       <div className="flex items-center space-x-2">
                         <Mail className="w-4 h-4" />
-                        <span>{invoiceData.clientEmail}</span>
+                        <span>{selectedBooking.clientEmail}</span>
                       </div>
                       <div className="flex items-center space-x-2">
                         <Phone className="w-4 h-4" />
-                        <span>{invoiceData.clientPhone}</span>
+                        <span>{selectedBooking.clientPhone}</span>
                       </div>
                     </div>
                   </div>
@@ -956,15 +1021,19 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Event Name:</span>
-                        <span className="text-sm font-medium">{invoiceData.eventName}</span>
+                        <span className="text-sm font-medium">{selectedBooking.eventName}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Venue:</span>
-                        <span className="text-sm font-medium">{invoiceData.hallName}</span>
+                        <span className="text-sm font-medium">{hall?.name}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Capacity:</span>
+                        <span className="text-sm font-medium">{hall?.capacity} guests</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Attendees:</span>
-                        <span className="text-sm font-medium">{invoiceData.attendees} guests</span>
+                        <span className="text-sm font-medium">{selectedBooking.attendees} people</span>
                       </div>
                     </div>
                   </div>
@@ -972,50 +1041,94 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Date:</span>
-                        <span className="text-sm font-medium">{new Date(invoiceData.eventDate).toLocaleDateString()}</span>
+                        <span className="text-sm font-medium">{new Date(selectedBooking.date).toLocaleDateString()}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Time:</span>
-                        <span className="text-sm font-medium">{invoiceData.eventTime}</span>
+                        <span className="text-sm font-medium">{selectedBooking.startTime} - {selectedBooking.endTime}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Invoice Due Date:</span>
-                        <span className="text-sm font-medium">{new Date(invoiceData.dueDate).toLocaleDateString()}</span>
+                        <span className="text-sm text-gray-600">Duration:</span>
+                        <span className="text-sm font-medium">{hours} hours</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Status:</span>
+                        <span className="text-sm font-medium capitalize">{selectedBooking.status.replace('-', ' ')}</span>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Invoice Items */}
+              {/* Charges Table */}
               <div className="mb-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Invoice Items</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Charges</h3>
                 <table className="w-full border border-gray-300">
                   <thead>
                     <tr className="bg-gray-50">
                       <th className="border border-gray-300 px-4 py-2 text-left text-sm font-medium text-gray-900">Description</th>
                       <th className="border border-gray-300 px-4 py-2 text-left text-sm font-medium text-gray-900">Quantity</th>
-                      <th className="border border-gray-300 px-4 py-2 text-left text-sm font-medium text-gray-900">Unit Price</th>
+                      <th className="border border-gray-300 px-4 py-2 text-left text-sm font-medium text-gray-900">Rate</th>
                       <th className="border border-gray-300 px-4 py-2 text-right text-sm font-medium text-gray-900">Amount</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {invoiceData.items.map((item: any, index: number) => (
-                      <tr key={index}>
-                        <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
-                          {item.description}
-                        </td>
-                        <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
-                          {item.quantity}
-                        </td>
-                        <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
-                          {formatCurrency(item.unitPrice)}
-                        </td>
-                        <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900 text-right">
-                          {formatCurrency(item.total)}
-                        </td>
-                      </tr>
-                    ))}
+                    <tr>
+                      <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
+                        {hall?.name} - Hall Rental
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
+                        {hours} hours
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
+                        {formatCurrency(hall?.rate || 0)}/hour
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900 text-right">
+                        {formatCurrency(hallRental)}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
+                        Setup and Decoration
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
+                        1
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
+                        {formatCurrency(setupFee)}
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900 text-right">
+                        {formatCurrency(setupFee)}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
+                        Catering Services
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
+                        {selectedBooking.attendees} guests
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
+                        {formatCurrency(1500)}/person
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900 text-right">
+                        {formatCurrency(cateringCost)}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
+                        Audio/Visual Equipment Rental
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
+                        1
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
+                        {formatCurrency(equipmentRental)}
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900 text-right">
+                        {formatCurrency(equipmentRental)}
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -1027,16 +1140,16 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
                     <div className="space-y-2 p-4 bg-gray-50 rounded-lg">
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Subtotal:</span>
-                        <span className="text-sm font-medium">{formatCurrency(invoiceData.subtotal)}</span>
+                        <span className="text-sm font-medium">{formatCurrency(subtotal)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">GST ({(invoiceData.taxRate * 100).toFixed(0)}%):</span>
-                        <span className="text-sm font-medium">{formatCurrency(invoiceData.taxAmount)}</span>
+                        <span className="text-sm text-gray-600">GST (18%):</span>
+                        <span className="text-sm font-medium">{formatCurrency(gstAmount)}</span>
                       </div>
                       <div className="border-t border-gray-300 pt-2">
                         <div className="flex justify-between">
                           <span className="text-lg font-bold text-gray-900">Total Amount:</span>
-                          <span className="text-lg font-bold text-gray-900">{formatCurrency(invoiceData.total)}</span>
+                          <span className="text-lg font-bold text-gray-900">{formatCurrency(totalAmount)}</span>
                         </div>
                       </div>
                     </div>
@@ -1044,37 +1157,38 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
                 </div>
               </div>
 
-              {/* Payment Options */}
+              {/* Payment Information */}
               <div className="mb-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Options</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="p-4 border border-gray-200 rounded-lg">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <CreditCard className="w-5 h-5 text-indigo-600" />
-                      <span className="font-medium text-gray-900">Credit Card</span>
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      We accept all major credit cards including Visa, Mastercard, and American Express.
-                    </p>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Information</h3>
+                <div className={`border rounded-lg p-4 ${
+                  selectedBooking.paymentStatus === 'paid' 
+                    ? 'bg-green-50 border-green-200' 
+                    : 'bg-yellow-50 border-yellow-200'
+                }`}>
+                  <div className="flex items-center space-x-2 mb-2">
+                    {selectedBooking.paymentStatus === 'paid' ? (
+                      <>
+                        <CheckCircle className="w-5 h-5 text-green-600" />
+                        <span className="font-medium text-green-800">Payment Status: PAID</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="w-5 h-5 text-yellow-600" />
+                        <span className="font-medium text-yellow-800">Payment Status: {selectedBooking.paymentStatus?.toUpperCase() || 'PENDING'}</span>
+                      </>
+                    )}
                   </div>
-                  <div className="p-4 border border-gray-200 rounded-lg">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <Cash className="w-5 h-5 text-green-600" />
-                      <span className="font-medium text-gray-900">Cash Payment</span>
+                  {selectedBooking.paymentStatus === 'paid' ? (
+                    <div className="text-sm text-green-700">
+                      <p>Payment Method: {selectedBooking.paymentMethod?.replace('-', ' ') || 'Not specified'}</p>
+                      {selectedBooking.paymentDate && <p>Payment Date: {new Date(selectedBooking.paymentDate).toLocaleDateString()}</p>}
                     </div>
-                    <p className="text-sm text-gray-600">
-                      Cash payments can be made at our front desk prior to the event.
-                    </p>
-                  </div>
-                  <div className="p-4 border border-gray-200 rounded-lg">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <Building className="w-5 h-5 text-blue-600" />
-                      <span className="font-medium text-gray-900">Bank Transfer</span>
+                  ) : (
+                    <div className="text-sm text-yellow-700">
+                      <p>Please complete payment to confirm your booking.</p>
+                      <p>Accepted payment methods: Cash, Credit/Debit Card, Bank Transfer</p>
                     </div>
-                    <p className="text-sm text-gray-600">
-                      Bank transfer details will be provided upon request.
-                    </p>
-                  </div>
+                  )}
                 </div>
               </div>
 
@@ -1084,45 +1198,26 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
                   <div>
                     <h4 className="font-semibold text-gray-900 mb-2">Terms & Conditions</h4>
                     <ul className="text-sm text-gray-600 list-disc pl-5 space-y-1">
-                      <li>Full payment is due 7 days before the event date</li>
-                      <li>Cancellation policy: 50% refund if cancelled 14 days before event</li>
-                      <li>No refunds for cancellations less than 7 days before event</li>
-                      <li>Additional charges may apply for overtime or extra services</li>
+                      <li>Full payment is required to confirm the booking.</li>
+                      <li>Cancellation within 48 hours of the event will incur a 50% charge.</li>
+                      <li>Additional charges may apply for extended hours.</li>
+                      <li>Damage to property will be charged separately.</li>
+                      <li>Outside food and beverages are not permitted.</li>
                     </ul>
                   </div>
                   <div className="text-right">
                     <div className="text-sm text-gray-600">
                       <p>Questions about this invoice?</p>
                       <p>Contact us at:</p>
-                      <p className="font-medium">+1 (555) 123-4567</p>
-                      <p className="font-medium">events@harmonysuite.com</p>
+                      <p className="font-medium">{branding.contact.phone}</p>
+                      <p className="font-medium">{branding.contact.email}</p>
                     </div>
                     <div className="mt-4 text-xs text-gray-500">
-                      <p>Invoice generated on {new Date().toLocaleDateString()}</p>
+                      <p>Invoice generated on {invoiceDate}</p>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-
-          {/* Payment Actions */}
-          <div className="p-6 border-t border-gray-200 bg-gray-50">
-            <div className="flex flex-wrap gap-3 justify-end">
-              <button
-                onClick={() => setShowChargeForm(true)}
-                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-              >
-                <Receipt className="w-4 h-4" />
-                <span>Post to Room</span>
-              </button>
-              <button
-                onClick={() => setShowInvoice(false)}
-                className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
-              >
-                <Check className="w-4 h-4" />
-                <span>Close</span>
-              </button>
             </div>
           </div>
         </div>
@@ -1292,7 +1387,7 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Attendees</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
@@ -1328,26 +1423,29 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
                           {booking.status.replace('-', ' ')}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {formatCurrency(booking.totalAmount, booking.currency)}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getPaymentStatusColor(booking.paymentStatus)}`}>
+                          {booking.paymentStatus ? booking.paymentStatus.toUpperCase() : 'PENDING'}
+                        </span>
+                        <div className="text-sm text-gray-500 mt-1">
+                          {formatCurrency(booking.totalAmount, booking.currency)}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <div className="flex space-x-2">
                           <button 
                             onClick={() => {
                               setSelectedBooking(booking);
-                              const invoiceData = generateInvoiceData(booking);
-                              setInvoiceData(invoiceData);
                               setShowInvoice(true);
                             }}
                             className="text-blue-600 hover:text-blue-900"
                             title="Generate Invoice"
                           >
-                            <FileText className="w-4 h-4" />
+                            <Receipt className="w-4 h-4" />
                           </button>
                           <button 
                             onClick={() => {
-                              setEditingBooking(booking);
+                              setSelectedBooking(booking);
                               setShowEditBookingForm(true);
                             }}
                             className="text-indigo-600 hover:text-indigo-900"
@@ -1357,7 +1455,7 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
                           </button>
                           <button 
                             onClick={() => {
-                              if (window.confirm('Are you sure you want to delete this booking?')) {
+                              if (confirm('Are you sure you want to delete this booking?')) {
                                 deleteBanquetBooking(booking.id);
                               }
                             }}
@@ -1366,13 +1464,44 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
-                          <button 
-                            onClick={() => setShowChargeForm(true)}
-                            className="text-green-600 hover:text-green-900"
-                            title="Bill to Room"
-                          >
-                            <Receipt className="w-4 h-4" />
-                          </button>
+                          {booking.paymentStatus !== 'paid' && (
+                            <div className="relative group">
+                              <button 
+                                className="text-green-600 hover:text-green-900"
+                                title="Mark as Paid"
+                              >
+                                <DollarSign className="w-4 h-4" />
+                              </button>
+                              <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg hidden group-hover:block z-10">
+                                <div className="py-1">
+                                  <button 
+                                    onClick={() => markAsPaid(booking.id, 'cash')}
+                                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                  >
+                                    Cash Payment
+                                  </button>
+                                  <button 
+                                    onClick={() => markAsPaid(booking.id, 'card')}
+                                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                  >
+                                    Card Payment
+                                  </button>
+                                  <button 
+                                    onClick={() => markAsPaid(booking.id, 'bank-transfer')}
+                                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                  >
+                                    Bank Transfer
+                                  </button>
+                                  <button 
+                                    onClick={() => markAsPaid(booking.id, 'room-charge')}
+                                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                  >
+                                    Charge to Room
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1384,12 +1513,12 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
         </div>
       )}
 
-      {showBookingForm && <BookingForm />}
-      {showEditBookingForm && <BookingForm />}
+      {showBookingForm && <BookingForm isEditing={false} />}
+      {showEditBookingForm && selectedBooking && <BookingForm isEditing={true} />}
       {showHallDetails && <HallDetailsModal />}
       {showChargeForm && <ChargeForm />}
       {showHallManagement && <BanquetHallManagement onClose={() => setShowHallManagement(false)} />}
-      {showInvoice && <InvoiceModal />}
+      {showInvoice && selectedBooking && <InvoiceModal />}
     </div>
   );
 }
