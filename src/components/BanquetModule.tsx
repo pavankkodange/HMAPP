@@ -20,13 +20,20 @@ import {
   Music,
   Camera,
   Receipt,
-  CreditCard,
-  Printer,
+  Edit,
+  Trash2,
+  FileText,
   Download,
-  CheckCircle,
-  Settings
+  Printer,
+  CreditCard,
+  DollarSign as Cash,
+  Building,
+  Check,
+  AlertCircle
 } from 'lucide-react';
 import { BanquetHall, BanquetBooking } from '../types';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 interface BanquetModuleProps {
   filters?: {
@@ -40,24 +47,29 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
     banquetHalls, 
     banquetBookings, 
     addBanquetBooking,
+    updateBanquetBooking,
+    deleteBanquetBooking,
     bookings,
     guests,
-    addRoomCharge,
-    updateBookingStatus
+    addRoomCharge
   } = useHotel();
   const { formatCurrency, hotelSettings } = useCurrency();
   
   const [view, setView] = useState<'halls' | 'bookings'>('halls');
   const [showBookingForm, setShowBookingForm] = useState(false);
+  const [showEditBookingForm, setShowEditBookingForm] = useState(false);
+  const [editingBooking, setEditingBooking] = useState<BanquetBooking | null>(null);
   const [showChargeForm, setShowChargeForm] = useState(false);
   const [showHallManagement, setShowHallManagement] = useState(false);
-  const [showInvoiceForm, setShowInvoiceForm] = useState(false);
   const [selectedHall, setSelectedHall] = useState<BanquetHall | null>(null);
-  const [selectedBooking, setSelectedBooking] = useState<BanquetBooking | null>(null);
   const [showHallDetails, setShowHallDetails] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState<string>('');
   const [bookingError, setBookingError] = useState<string>('');
+  const [showInvoice, setShowInvoice] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<BanquetBooking | null>(null);
+  const [invoiceData, setInvoiceData] = useState<any>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   // Apply filters from dashboard navigation
   useEffect(() => {
@@ -95,10 +107,10 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
   };
 
   // Check if a hall is already booked for the given date and time
-  const isHallBooked = (hallId: string, date: string, startTime: string, endTime: string): boolean => {
+  const isHallBooked = (hallId: string, date: string, startTime: string, endTime: string, excludeBookingId?: string): boolean => {
     return banquetBookings.some(booking => {
-      // Skip cancelled bookings
-      if (booking.status === 'cancelled') return false;
+      // Skip cancelled bookings and the booking being edited
+      if (booking.status === 'cancelled' || (excludeBookingId && booking.id === excludeBookingId)) return false;
       
       // Check if it's the same hall and date
       if (booking.hallId === hallId && booking.date === date) {
@@ -127,13 +139,207 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
     ? banquetBookings.filter(booking => booking.date === today)
     : banquetBookings;
 
+  // Generate invoice data for a booking
+  const generateInvoiceData = (booking: BanquetBooking) => {
+    const hall = banquetHalls.find(h => h.id === booking.hallId);
+    if (!hall) return null;
+
+    // Calculate hours
+    const startTime = new Date(`2000-01-01T${booking.startTime}`);
+    const endTime = new Date(`2000-01-01T${booking.endTime}`);
+    let hours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+    if (hours < 0) hours += 24; // Handle cases where end time is next day
+    
+    // Calculate base hall rental
+    const hallRental = hall.rate * hours;
+    
+    // Additional services (example data - in a real app, these would be stored with the booking)
+    const additionalServices = [
+      { description: 'Catering Service (per person)', quantity: booking.attendees, unitPrice: 1200 },
+      { description: 'Decoration Package', quantity: 1, unitPrice: 15000 },
+      { description: 'Audio/Visual Equipment', quantity: 1, unitPrice: 8000 }
+    ];
+    
+    // Calculate subtotal
+    const servicesTotal = additionalServices.reduce((sum, service) => sum + (service.quantity * service.unitPrice), 0);
+    const subtotal = hallRental + servicesTotal;
+    
+    // Calculate tax (18% GST)
+    const taxRate = 0.18;
+    const taxAmount = subtotal * taxRate;
+    
+    // Calculate total
+    const total = subtotal + taxAmount;
+    
+    // Generate invoice number
+    const invoiceNumber = `INV-BQ-${new Date().getFullYear()}-${booking.id.slice(-4)}`;
+    
+    return {
+      invoiceNumber,
+      date: new Date().toISOString().split('T')[0],
+      dueDate: booking.date, // Due by event date
+      clientName: booking.clientName,
+      clientEmail: booking.clientEmail,
+      clientPhone: booking.clientPhone,
+      eventName: booking.eventName,
+      eventDate: booking.date,
+      eventTime: `${booking.startTime} - ${booking.endTime}`,
+      hallName: hall.name,
+      attendees: booking.attendees,
+      items: [
+        {
+          description: `${hall.name} Rental (${hours} hours)`,
+          quantity: hours,
+          unitPrice: hall.rate,
+          total: hallRental
+        },
+        ...additionalServices.map(service => ({
+          description: service.description,
+          quantity: service.quantity,
+          unitPrice: service.unitPrice,
+          total: service.quantity * service.unitPrice
+        }))
+      ],
+      subtotal,
+      taxRate,
+      taxAmount,
+      total,
+      currency: hotelSettings.baseCurrency
+    };
+  };
+
+  const generatePDF = async () => {
+    if (!invoiceData) return;
+    
+    const invoiceElement = document.getElementById('banquet-invoice');
+    if (!invoiceElement) return;
+    
+    setIsGeneratingPdf(true);
+    
+    try {
+      // Create a temporary container for PDF generation
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.top = '0';
+      tempContainer.style.width = '210mm'; // A4 width
+      tempContainer.style.backgroundColor = 'white';
+      tempContainer.style.fontFamily = 'Arial, sans-serif';
+      tempContainer.style.fontSize = '12px';
+      tempContainer.style.lineHeight = '1.4';
+      tempContainer.style.color = '#000';
+      
+      // Clone the invoice content
+      const invoiceClone = invoiceElement.cloneNode(true) as HTMLElement;
+      invoiceClone.style.padding = '20px';
+      invoiceClone.style.maxWidth = 'none';
+      invoiceClone.style.boxShadow = 'none';
+      invoiceClone.style.border = 'none';
+      invoiceClone.style.borderRadius = '0';
+      
+      tempContainer.appendChild(invoiceClone);
+      document.body.appendChild(tempContainer);
+
+      // Generate canvas from HTML
+      const canvas = await html2canvas(tempContainer, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        width: 794, // A4 width in pixels at 96 DPI
+        height: 1123 // A4 height in pixels at 96 DPI
+      });
+
+      // Create PDF
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgData = canvas.toDataURL('image/png');
+      const imgWidth = 210; // A4 width in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      
+      // Save PDF
+      const fileName = `Banquet_Invoice_${invoiceData.invoiceNumber}.pdf`;
+      pdf.save(fileName);
+
+      // Clean up
+      document.body.removeChild(tempContainer);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Error generating PDF. Please try again.');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  const printInvoice = () => {
+    const invoiceElement = document.getElementById('banquet-invoice');
+    if (!invoiceElement) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const invoiceHTML = invoiceElement.innerHTML;
+    
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Banquet Invoice - ${invoiceData?.invoiceNumber}</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 0;
+              padding: 20px;
+              font-size: 12px;
+              line-height: 1.4;
+              color: #000;
+            }
+            .no-print { display: none !important; }
+            table { border-collapse: collapse; width: 100%; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f5f5f5; }
+            .text-right { text-align: right; }
+            .font-bold { font-weight: bold; }
+            .text-lg { font-size: 14px; }
+            .text-xl { font-size: 16px; }
+            .text-2xl { font-size: 18px; }
+            .text-3xl { font-size: 20px; }
+            .mb-2 { margin-bottom: 8px; }
+            .mb-4 { margin-bottom: 16px; }
+            .mb-6 { margin-bottom: 24px; }
+            .mt-4 { margin-top: 16px; }
+            .mt-6 { margin-top: 24px; }
+            .p-4 { padding: 16px; }
+            .border { border: 1px solid #ddd; }
+            .bg-gray-50 { background-color: #f9f9f9; }
+            .grid { display: grid; }
+            .grid-cols-2 { grid-template-columns: 1fr 1fr; }
+            .gap-4 { gap: 16px; }
+            @media print {
+              body { margin: 0; }
+              .no-print { display: none !important; }
+            }
+          </style>
+        </head>
+        <body>
+          ${invoiceHTML}
+        </body>
+      </html>
+    `);
+    
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  };
+
   const ChargeForm = () => {
     const [formData, setFormData] = useState({
       bookingId: '',
       description: '',
       amount: '',
-      eventName: '',
-      serviceType: ''
+      eventName: ''
     });
 
     const activeBookings = bookings.filter(b => b.status === 'checked-in');
@@ -143,13 +349,13 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
       addRoomCharge(formData.bookingId, {
         description: formData.description,
         amount: parseFloat(formData.amount),
-        currency: 'INR',
+        currency: hotelSettings.baseCurrency,
         date: new Date().toISOString().split('T')[0],
-        category: 'other'
+        category: 'banquet'
       });
       
       setShowChargeForm(false);
-      setFormData({ bookingId: '', description: '', amount: '', eventName: '', serviceType: '' });
+      setFormData({ bookingId: '', description: '', amount: '', eventName: '' });
       alert('Banquet charge posted to room successfully!');
     };
 
@@ -189,10 +395,10 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Service Type</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Event/Service</label>
               <select
-                value={formData.serviceType}
-                onChange={(e) => setFormData({ ...formData, serviceType: e.target.value })}
+                value={formData.eventName}
+                onChange={(e) => setFormData({ ...formData, eventName: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="">Select service type</option>
@@ -219,7 +425,7 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Amount (INR)
+                Amount ({hotelSettings.baseCurrency})
               </label>
               <input
                 type="number"
@@ -253,350 +459,6 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
     );
   };
 
-  const InvoiceForm = () => {
-    if (!selectedBooking) return null;
-
-    const [formData, setFormData] = useState({
-      additionalItems: [
-        { description: 'Hall Rental', amount: selectedBooking.totalAmount },
-        { description: 'Catering Services', amount: 0 },
-        { description: 'Decoration', amount: 0 },
-        { description: 'Audio/Visual Equipment', amount: 0 }
-      ],
-      paymentMethod: 'card',
-      addToRoom: false,
-      roomBookingId: '',
-      notes: '',
-      discount: 0
-    });
-
-    const [newItem, setNewItem] = useState({ description: '', amount: '' });
-    const activeBookings = bookings.filter(b => b.status === 'checked-in');
-    
-    const handleAddItem = () => {
-      if (newItem.description && newItem.amount) {
-        setFormData({
-          ...formData,
-          additionalItems: [
-            ...formData.additionalItems,
-            { description: newItem.description, amount: parseFloat(newItem.amount) }
-          ]
-        });
-        setNewItem({ description: '', amount: '' });
-      }
-    };
-
-    const handleRemoveItem = (index: number) => {
-      setFormData({
-        ...formData,
-        additionalItems: formData.additionalItems.filter((_, i) => i !== index)
-      });
-    };
-
-    const calculateSubtotal = () => {
-      return formData.additionalItems.reduce((sum, item) => sum + item.amount, 0);
-    };
-
-    const calculateTax = () => {
-      return calculateSubtotal() * 0.18; // 18% GST
-    };
-
-    const calculateTotal = () => {
-      return calculateSubtotal() + calculateTax() - formData.discount;
-    };
-
-    const handleSubmit = (e: React.FormEvent) => {
-      e.preventDefault();
-      
-      // If adding to room charge
-      if (formData.addToRoom && formData.roomBookingId) {
-        addRoomCharge(formData.roomBookingId, {
-          description: `Banquet Event: ${selectedBooking.eventName}`,
-          amount: calculateTotal(),
-          currency: 'INR',
-          date: new Date().toISOString().split('T')[0],
-          category: 'banquet'
-        });
-        alert('Banquet charges added to room successfully!');
-      } else {
-        // Process direct payment
-        alert(`Payment of ${formatCurrency(calculateTotal(), 'INR')} processed successfully via ${formData.paymentMethod}!`);
-      }
-      
-      // Update booking status to completed
-      if (selectedBooking) {
-        const bookingId = selectedBooking.id;
-        const updatedBookings = banquetBookings.map(booking => 
-          booking.id === bookingId ? { ...booking, status: 'completed' } : booking
-        );
-        // In a real app, you would call an API to update the booking status
-      }
-      
-      setShowInvoiceForm(false);
-      setSelectedBooking(null);
-    };
-
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-2xl p-8 max-w-4xl w-full m-4 max-h-[90vh] overflow-y-auto">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-2xl font-bold">Generate Invoice</h3>
-            <button
-              onClick={() => setShowInvoiceForm(false)}
-              className="p-2 hover:bg-gray-100 rounded-lg"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="bg-blue-50 rounded-xl p-6 mb-6">
-            <h4 className="text-lg font-semibold text-blue-900 mb-3">Event Details</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-blue-700">Event Name</p>
-                <p className="font-semibold text-blue-900">{selectedBooking.eventName}</p>
-              </div>
-              <div>
-                <p className="text-sm text-blue-700">Client</p>
-                <p className="font-semibold text-blue-900">{selectedBooking.clientName}</p>
-              </div>
-              <div>
-                <p className="text-sm text-blue-700">Date & Time</p>
-                <p className="font-semibold text-blue-900">
-                  {new Date(selectedBooking.date).toLocaleDateString()} ({selectedBooking.startTime} - {selectedBooking.endTime})
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-blue-700">Attendees</p>
-                <p className="font-semibold text-blue-900">{selectedBooking.attendees} guests</p>
-              </div>
-            </div>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-4">Invoice Items</h4>
-              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount (INR)</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {formData.additionalItems.map((item, index) => (
-                      <tr key={index}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.description}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                          {formatCurrency(item.amount, 'INR')}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          {index > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveItem(index)}
-                              className="text-red-600 hover:text-red-900"
-                            >
-                              Remove
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="mt-4 grid grid-cols-3 gap-4">
-                <div className="col-span-2">
-                  <input
-                    type="text"
-                    value={newItem.description}
-                    onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
-                    placeholder="Item description"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-                <div className="flex space-x-2">
-                  <input
-                    type="number"
-                    value={newItem.amount}
-                    onChange={(e) => setNewItem({ ...newItem, amount: e.target.value })}
-                    placeholder="Amount"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                    min="0"
-                    step="0.01"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddItem}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                  >
-                    Add
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gray-50 rounded-xl p-6">
-              <h4 className="text-lg font-semibold text-gray-900 mb-4">Invoice Summary</h4>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Subtotal:</span>
-                  <span className="font-medium">{formatCurrency(calculateSubtotal(), 'INR')}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">GST (18%):</span>
-                  <span className="font-medium">{formatCurrency(calculateTax(), 'INR')}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Discount:</span>
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="number"
-                      value={formData.discount}
-                      onChange={(e) => setFormData({ ...formData, discount: parseFloat(e.target.value) || 0 })}
-                      className="w-24 px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-right"
-                      min="0"
-                      step="0.01"
-                    />
-                    <span className="text-gray-600">INR</span>
-                  </div>
-                </div>
-                <div className="flex justify-between pt-2 border-t border-gray-200 text-lg font-bold">
-                  <span>Total:</span>
-                  <span className="text-green-600">{formatCurrency(calculateTotal(), 'INR')}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gray-50 rounded-xl p-6">
-              <h4 className="text-lg font-semibold text-gray-900 mb-4">Payment Options</h4>
-              
-              <div className="mb-4">
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.addToRoom}
-                    onChange={(e) => setFormData({ ...formData, addToRoom: e.target.checked })}
-                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <span className="text-sm font-medium text-gray-700">Add to Guest Room</span>
-                </label>
-              </div>
-              
-              {formData.addToRoom ? (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Select Room</label>
-                  <select
-                    value={formData.roomBookingId}
-                    onChange={(e) => setFormData({ ...formData, roomBookingId: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                    required={formData.addToRoom}
-                  >
-                    <option value="">Select a room</option>
-                    {activeBookings.map((booking) => {
-                      const guest = guests.find(g => g.id === booking.guestId);
-                      const roomNumber = booking.roomId;
-                      return (
-                        <option key={booking.id} value={booking.id}>
-                          Room {roomNumber} - {guest?.name}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
-                  <div className="grid grid-cols-3 gap-4">
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, paymentMethod: 'card' })}
-                      className={`p-4 rounded-lg border-2 transition-all ${
-                        formData.paymentMethod === 'card'
-                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <CreditCard className="w-6 h-6 mx-auto mb-2" />
-                      <p className="text-sm font-medium">Credit Card</p>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, paymentMethod: 'cash' })}
-                      className={`p-4 rounded-lg border-2 transition-all ${
-                        formData.paymentMethod === 'cash'
-                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <DollarSign className="w-6 h-6 mx-auto mb-2" />
-                      <p className="text-sm font-medium">Cash</p>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, paymentMethod: 'bank-transfer' })}
-                      className={`p-4 rounded-lg border-2 transition-all ${
-                        formData.paymentMethod === 'bank-transfer'
-                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <Receipt className="w-6 h-6 mx-auto mb-2" />
-                      <p className="text-sm font-medium">Bank Transfer</p>
-                    </button>
-                  </div>
-                </div>
-              )}
-              
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
-                <textarea
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  rows={3}
-                  placeholder="Additional notes or payment instructions..."
-                />
-              </div>
-            </div>
-
-            <div className="flex space-x-4 pt-4">
-              <button
-                type="button"
-                onClick={() => setShowInvoiceForm(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  // Print or download invoice logic
-                  alert('Invoice generated for printing/download!');
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center space-x-2"
-              >
-                <Printer className="w-4 h-4" />
-                <span>Print Invoice</span>
-              </button>
-              <button
-                type="submit"
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center space-x-2"
-              >
-                <CheckCircle className="w-4 h-4" />
-                <span>{formData.addToRoom ? 'Add to Room' : 'Process Payment'}</span>
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  };
-
   const HallDetailsModal = () => {
     if (!selectedHall) return null;
 
@@ -605,8 +467,8 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
     ).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-2xl max-w-4xl w-full m-4 max-h-[90vh] overflow-y-auto">
           <div className="relative">
             {selectedHall.photos.length > 0 && (
               <img
@@ -620,7 +482,7 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
                 setShowHallDetails(false);
                 setSelectedHall(null);
               }}
-              className="absolute top-4 right-4 bg-white rounded-full p-2 shadow-lg hover:bg-gray-100 transition-colors"
+              className="absolute top-4 right-4 bg-white rounded-full p-2 shadow-lg hover:bg-gray-100"
             >
               <X className="w-5 h-5" />
             </button>
@@ -635,118 +497,84 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-3xl font-bold text-gray-900">{selectedHall.name}</h2>
-                {selectedHall.location && (
-                  <div className="flex items-center space-x-2 mt-2">
-                    <MapPin className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-600">{selectedHall.location}</span>
+                <div className="flex items-center space-x-4 mt-2">
+                  <div className="flex items-center space-x-2">
+                    <Users className="w-5 h-5 text-gray-400" />
+                    <span className="text-gray-600">Up to {selectedHall.capacity} guests</span>
                   </div>
-                )}
+                </div>
               </div>
               <div className="text-right">
-                <p className="text-3xl font-bold text-green-600">{formatCurrency(selectedHall.rate, 'INR')}</p>
+                <p className="text-3xl font-bold text-green-600">{formatCurrency(selectedHall.rate)}</p>
                 <p className="text-sm text-gray-500">per hour</p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-4">Hall Details</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-3">
-                    <Users className="w-5 h-5 text-gray-400" />
-                    <span>Capacity: {selectedHall.capacity} guests</span>
-                  </div>
-                  {selectedHall.size && (
-                    <div className="flex items-center space-x-3">
-                      <Settings className="w-5 h-5 text-gray-400" />
-                      <span>Size: {selectedHall.size} sq ft</span>
+                <h3 className="text-xl font-semibold text-gray-900 mb-4">Amenities & Features</h3>
+                <div className="grid grid-cols-1 gap-3">
+                  {selectedHall.amenities.map((amenity) => (
+                    <div key={amenity} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                      {getAmenityIcon(amenity)}
+                      <span className="text-gray-700 font-medium">{amenity}</span>
                     </div>
-                  )}
-                  {selectedHall.minimumHours && (
-                    <div className="flex items-center space-x-3">
-                      <Clock className="w-5 h-5 text-gray-400" />
-                      <span>Minimum booking: {selectedHall.minimumHours} hours</span>
-                    </div>
-                  )}
+                  ))}
                 </div>
 
-                <h4 className="text-lg font-semibold text-gray-900 mt-6 mb-3">Amenities</h4>
-                <div className="flex flex-wrap gap-2">
-                  {selectedHall.amenities.map((amenity) => (
-                    <span key={amenity} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-                      {amenity}
-                    </span>
-                  ))}
+                <div className="mt-6">
+                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Perfect For</h4>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">Weddings</span>
+                    <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm">Corporate Events</span>
+                    <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">Conferences</span>
+                    <span className="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm">Celebrations</span>
+                  </div>
                 </div>
               </div>
 
               <div>
-                {selectedHall.setupOptions && selectedHall.setupOptions.length > 0 && (
-                  <div className="mb-6">
-                    <h4 className="text-lg font-semibold text-gray-900 mb-3">Setup Options</h4>
-                    <div className="space-y-2">
-                      {selectedHall.setupOptions.map((option, index) => (
-                        <div key={index} className="flex items-center space-x-2">
-                          <CheckCircle className="w-4 h-4 text-green-500" />
-                          <span className="text-gray-700">{option}</span>
+                <h3 className="text-xl font-semibold text-gray-900 mb-4">Upcoming Events</h3>
+                {upcomingEvents.length > 0 ? (
+                  <div className="space-y-3">
+                    {upcomingEvents.slice(0, 3).map((event) => (
+                      <div key={event.id} className="p-4 border border-gray-200 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-semibold text-gray-900">{event.eventName}</h4>
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(event.status)}`}>
+                            {event.status.replace('-', ' ')}
+                          </span>
                         </div>
-                      ))}
-                    </div>
+                        <div className="text-sm text-gray-600 space-y-1">
+                          <div className="flex items-center space-x-2">
+                            <Calendar className="w-4 h-4" />
+                            <span>{new Date(event.date).toLocaleDateString()}</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Clock className="w-4 h-4" />
+                            <span>{event.startTime} - {event.endTime}</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Users className="w-4 h-4" />
+                            <span>{event.attendees} attendees</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {upcomingEvents.length > 3 && (
+                      <p className="text-sm text-gray-500 text-center">
+                        +{upcomingEvents.length - 3} more events
+                      </p>
+                    )}
                   </div>
-                )}
-
-                {selectedHall.cateringOptions && selectedHall.cateringOptions.length > 0 && (
-                  <div className="mb-6">
-                    <h4 className="text-lg font-semibold text-gray-900 mb-3">Catering Options</h4>
-                    <div className="space-y-2">
-                      {selectedHall.cateringOptions.map((option, index) => (
-                        <div key={index} className="flex items-center space-x-2">
-                          <CheckCircle className="w-4 h-4 text-green-500" />
-                          <span className="text-gray-700">{option}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {selectedHall.availableEquipment && selectedHall.availableEquipment.length > 0 && (
-                  <div>
-                    <h4 className="text-lg font-semibold text-gray-900 mb-3">Available Equipment</h4>
-                    <div className="space-y-2">
-                      {selectedHall.availableEquipment.map((equipment, index) => (
-                        <div key={index} className="flex items-center space-x-2">
-                          <CheckCircle className="w-4 h-4 text-green-500" />
-                          <span className="text-gray-700">{equipment}</span>
-                        </div>
-                      ))}
-                    </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-500">No upcoming events</p>
                   </div>
                 )}
               </div>
             </div>
-
-            {selectedHall.photos.length > 1 && (
-              <div className="mt-8">
-                <h4 className="text-lg font-semibold text-gray-900 mb-4">Photo Gallery</h4>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {selectedHall.photos.slice(1).map((photo, index) => (
-                    <img
-                      key={index}
-                      src={photo}
-                      alt={`${selectedHall.name} ${index + 2}`}
-                      className="w-full h-32 object-cover rounded-lg border border-gray-200"
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {selectedHall.cancellationPolicy && (
-              <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-                <h4 className="text-lg font-semibold text-gray-900 mb-2">Cancellation Policy</h4>
-                <p className="text-gray-700">{selectedHall.cancellationPolicy}</p>
-              </div>
-            )}
 
             <div className="mt-8 pt-6 border-t border-gray-200 flex space-x-4">
               <button
@@ -772,7 +600,18 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
   };
 
   const BookingForm = () => {
-    const [formData, setFormData] = useState({
+    const initialFormData = editingBooking ? {
+      hallId: editingBooking.hallId,
+      eventName: editingBooking.eventName,
+      clientName: editingBooking.clientName,
+      clientEmail: editingBooking.clientEmail,
+      clientPhone: editingBooking.clientPhone,
+      date: editingBooking.date,
+      startTime: editingBooking.startTime,
+      endTime: editingBooking.endTime,
+      attendees: editingBooking.attendees.toString(),
+      specialRequirements: editingBooking.specialRequirements || ''
+    } : {
       hallId: selectedHall?.id || '',
       eventName: '',
       clientName: '',
@@ -783,14 +622,22 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
       endTime: '',
       attendees: '',
       specialRequirements: ''
-    });
+    };
+
+    const [formData, setFormData] = useState(initialFormData);
 
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       const hall = banquetHalls.find(h => h.id === formData.hallId);
       
       // Check if the hall is already booked for the selected date and time
-      if (isHallBooked(formData.hallId, formData.date, formData.startTime, formData.endTime)) {
+      if (isHallBooked(
+        formData.hallId, 
+        formData.date, 
+        formData.startTime, 
+        formData.endTime,
+        editingBooking?.id
+      )) {
         setBookingError('This hall is already booked for the selected date and time. Please choose a different time or date.');
         return;
       }
@@ -801,7 +648,7 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
            new Date(`1970-01-01T${formData.startTime}`).getTime()) / (1000 * 60 * 60)
         );
         
-        addBanquetBooking({
+        const bookingData = {
           hallId: formData.hallId,
           eventName: formData.eventName,
           clientName: formData.clientName,
@@ -812,12 +659,20 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
           endTime: formData.endTime,
           attendees: parseInt(formData.attendees),
           totalAmount: hall.rate * hours,
-          currency: 'INR',
+          currency: hotelSettings.baseCurrency,
           specialRequirements: formData.specialRequirements,
-          status: 'confirmed'
-        });
+          status: 'confirmed' as const
+        };
+
+        if (editingBooking) {
+          updateBanquetBooking(editingBooking.id, bookingData);
+          setShowEditBookingForm(false);
+          setEditingBooking(null);
+        } else {
+          addBanquetBooking(bookingData);
+          setShowBookingForm(false);
+        }
         
-        setShowBookingForm(false);
         setBookingError('');
         setFormData({
           hallId: '', eventName: '', clientName: '', clientEmail: '', clientPhone: '',
@@ -829,7 +684,7 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white rounded-2xl p-8 max-w-2xl w-full m-4 max-h-[90vh] overflow-y-auto">
-          <h3 className="text-2xl font-bold mb-6">New Banquet Booking</h3>
+          <h3 className="text-2xl font-bold mb-6">{editingBooking ? 'Edit Banquet Booking' : 'New Banquet Booking'}</h3>
           
           {bookingError && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
@@ -850,7 +705,7 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
                   <option value="">Select a hall</option>
                   {banquetHalls.map((hall) => (
                     <option key={hall.id} value={hall.id}>
-                      {hall.name} - Capacity: {hall.capacity} ({formatCurrency(hall.rate, 'INR')}/hour)
+                      {hall.name} - Capacity: {hall.capacity} ({formatCurrency(hall.rate)}/hour)
                     </option>
                   ))}
                 </select>
@@ -961,7 +816,12 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
               <button
                 type="button"
                 onClick={() => {
-                  setShowBookingForm(false);
+                  if (editingBooking) {
+                    setShowEditBookingForm(false);
+                    setEditingBooking(null);
+                  } else {
+                    setShowBookingForm(false);
+                  }
                   setBookingError('');
                 }}
                 className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
@@ -972,10 +832,299 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
                 type="submit"
                 className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
               >
-                Create Booking
+                {editingBooking ? 'Update Booking' : 'Create Booking'}
               </button>
             </div>
           </form>
+        </div>
+      </div>
+    );
+  };
+
+  const InvoiceModal = () => {
+    if (!selectedBooking || !invoiceData) return null;
+    
+    const hall = banquetHalls.find(h => h.id === selectedBooking.hallId);
+    
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+          {/* Header */}
+          <div className="flex items-center justify-between p-6 border-b border-gray-200">
+            <div className="flex items-center space-x-3">
+              <FileText className="w-6 h-6 text-indigo-600" />
+              <h2 className="text-2xl font-bold text-gray-900">Banquet Event Invoice</h2>
+            </div>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={generatePDF}
+                disabled={isGeneratingPdf}
+                className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {isGeneratingPdf ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                <span>Download PDF</span>
+              </button>
+              <button
+                onClick={printInvoice}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Print</span>
+              </button>
+              <button
+                onClick={() => setShowInvoice(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+
+          {/* Invoice Content */}
+          <div className="p-6">
+            <div id="banquet-invoice" className="bg-white max-w-4xl mx-auto">
+              {/* Header with Logo and Hotel Info */}
+              <div className="border-b-2 border-gray-300 pb-6 mb-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-16 h-16 bg-indigo-600 rounded-lg flex items-center justify-center">
+                      <Building className="w-10 h-10 text-white" />
+                    </div>
+                    <div>
+                      <h1 className="text-3xl font-bold text-gray-900">Harmony Suites</h1>
+                      <div className="flex items-center space-x-1 mt-1">
+                        {Array.from({ length: 5 }, (_, i) => (
+                          <span key={i} className="text-yellow-400 text-lg">★</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <h2 className="text-2xl font-bold text-gray-900">INVOICE</h2>
+                    <p className="text-lg font-semibold text-gray-700">#{invoiceData.invoiceNumber}</p>
+                    <p className="text-sm text-gray-600">Date: {invoiceData.date}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-8">
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-2">Hotel Information</h3>
+                    <div className="text-sm text-gray-600 space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <MapPin className="w-4 h-4" />
+                        <span>123 Luxury Avenue, Metropolitan City</span>
+                      </div>
+                      <div className="ml-6">
+                        State, 12345, Country
+                      </div>
+                      <div className="flex items-center space-x-2 mt-2">
+                        <Phone className="w-4 h-4" />
+                        <span>+1 (555) 123-4567</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Mail className="w-4 h-4" />
+                        <span>info@harmonysuite.com</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-2">Bill To</h3>
+                    <div className="text-sm text-gray-600 space-y-1">
+                      <div className="font-medium">{invoiceData.clientName}</div>
+                      <div className="flex items-center space-x-2">
+                        <Mail className="w-4 h-4" />
+                        <span>{invoiceData.clientEmail}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Phone className="w-4 h-4" />
+                        <span>{invoiceData.clientPhone}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Event Details */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Event Details</h3>
+                <div className="grid grid-cols-2 gap-6 bg-gray-50 p-4 rounded-lg">
+                  <div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Event Name:</span>
+                        <span className="text-sm font-medium">{invoiceData.eventName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Venue:</span>
+                        <span className="text-sm font-medium">{invoiceData.hallName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Attendees:</span>
+                        <span className="text-sm font-medium">{invoiceData.attendees} guests</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Date:</span>
+                        <span className="text-sm font-medium">{new Date(invoiceData.eventDate).toLocaleDateString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Time:</span>
+                        <span className="text-sm font-medium">{invoiceData.eventTime}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Invoice Due Date:</span>
+                        <span className="text-sm font-medium">{new Date(invoiceData.dueDate).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Invoice Items */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Invoice Items</h3>
+                <table className="w-full border border-gray-300">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="border border-gray-300 px-4 py-2 text-left text-sm font-medium text-gray-900">Description</th>
+                      <th className="border border-gray-300 px-4 py-2 text-left text-sm font-medium text-gray-900">Quantity</th>
+                      <th className="border border-gray-300 px-4 py-2 text-left text-sm font-medium text-gray-900">Unit Price</th>
+                      <th className="border border-gray-300 px-4 py-2 text-right text-sm font-medium text-gray-900">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invoiceData.items.map((item: any, index: number) => (
+                      <tr key={index}>
+                        <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
+                          {item.description}
+                        </td>
+                        <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
+                          {item.quantity}
+                        </td>
+                        <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
+                          {formatCurrency(item.unitPrice)}
+                        </td>
+                        <td className="border border-gray-300 px-4 py-2 text-sm text-gray-900 text-right">
+                          {formatCurrency(item.total)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Totals */}
+              <div className="mb-6">
+                <div className="flex justify-end">
+                  <div className="w-80">
+                    <div className="space-y-2 p-4 bg-gray-50 rounded-lg">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Subtotal:</span>
+                        <span className="text-sm font-medium">{formatCurrency(invoiceData.subtotal)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">GST ({(invoiceData.taxRate * 100).toFixed(0)}%):</span>
+                        <span className="text-sm font-medium">{formatCurrency(invoiceData.taxAmount)}</span>
+                      </div>
+                      <div className="border-t border-gray-300 pt-2">
+                        <div className="flex justify-between">
+                          <span className="text-lg font-bold text-gray-900">Total Amount:</span>
+                          <span className="text-lg font-bold text-gray-900">{formatCurrency(invoiceData.total)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Options */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Options</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-4 border border-gray-200 rounded-lg">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <CreditCard className="w-5 h-5 text-indigo-600" />
+                      <span className="font-medium text-gray-900">Credit Card</span>
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      We accept all major credit cards including Visa, Mastercard, and American Express.
+                    </p>
+                  </div>
+                  <div className="p-4 border border-gray-200 rounded-lg">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Cash className="w-5 h-5 text-green-600" />
+                      <span className="font-medium text-gray-900">Cash Payment</span>
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      Cash payments can be made at our front desk prior to the event.
+                    </p>
+                  </div>
+                  <div className="p-4 border border-gray-200 rounded-lg">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Building className="w-5 h-5 text-blue-600" />
+                      <span className="font-medium text-gray-900">Bank Transfer</span>
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      Bank transfer details will be provided upon request.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Terms and Conditions */}
+              <div className="border-t-2 border-gray-300 pt-6 mt-8">
+                <div className="grid grid-cols-2 gap-8">
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-2">Terms & Conditions</h4>
+                    <ul className="text-sm text-gray-600 list-disc pl-5 space-y-1">
+                      <li>Full payment is due 7 days before the event date</li>
+                      <li>Cancellation policy: 50% refund if cancelled 14 days before event</li>
+                      <li>No refunds for cancellations less than 7 days before event</li>
+                      <li>Additional charges may apply for overtime or extra services</li>
+                    </ul>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm text-gray-600">
+                      <p>Questions about this invoice?</p>
+                      <p>Contact us at:</p>
+                      <p className="font-medium">+1 (555) 123-4567</p>
+                      <p className="font-medium">events@harmonysuite.com</p>
+                    </div>
+                    <div className="mt-4 text-xs text-gray-500">
+                      <p>Invoice generated on {new Date().toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Payment Actions */}
+          <div className="p-6 border-t border-gray-200 bg-gray-50">
+            <div className="flex flex-wrap gap-3 justify-end">
+              <button
+                onClick={() => setShowChargeForm(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              >
+                <Receipt className="w-4 h-4" />
+                <span>Post to Room</span>
+              </button>
+              <button
+                onClick={() => setShowInvoice(false)}
+                className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+              >
+                <Check className="w-4 h-4" />
+                <span>Close</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -1073,7 +1222,7 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xl font-bold text-gray-900">{hall.name}</h3>
-                  <span className="text-lg font-semibold text-green-600">{formatCurrency(hall.rate, 'INR')}/hour</span>
+                  <span className="text-lg font-semibold text-green-600">{formatCurrency(hall.rate)}/hour</span>
                 </div>
                 
                 <div className="flex items-center space-x-4 mb-4">
@@ -1187,17 +1336,42 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
                           <button 
                             onClick={() => {
                               setSelectedBooking(booking);
-                              setShowInvoiceForm(true);
+                              const invoiceData = generateInvoiceData(booking);
+                              setInvoiceData(invoiceData);
+                              setShowInvoice(true);
+                            }}
+                            className="text-blue-600 hover:text-blue-900"
+                            title="Generate Invoice"
+                          >
+                            <FileText className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => {
+                              setEditingBooking(booking);
+                              setShowEditBookingForm(true);
                             }}
                             className="text-indigo-600 hover:text-indigo-900"
+                            title="Edit Booking"
                           >
-                            Generate Invoice
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => {
+                              if (window.confirm('Are you sure you want to delete this booking?')) {
+                                deleteBanquetBooking(booking.id);
+                              }
+                            }}
+                            className="text-red-600 hover:text-red-900"
+                            title="Delete Booking"
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </button>
                           <button 
                             onClick={() => setShowChargeForm(true)}
                             className="text-green-600 hover:text-green-900"
+                            title="Bill to Room"
                           >
-                            Bill to Room
+                            <Receipt className="w-4 h-4" />
                           </button>
                         </div>
                       </td>
@@ -1211,10 +1385,11 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
       )}
 
       {showBookingForm && <BookingForm />}
+      {showEditBookingForm && <BookingForm />}
       {showHallDetails && <HallDetailsModal />}
       {showChargeForm && <ChargeForm />}
-      {showInvoiceForm && <InvoiceForm />}
       {showHallManagement && <BanquetHallManagement onClose={() => setShowHallManagement(false)} />}
+      {showInvoice && <InvoiceModal />}
     </div>
   );
 }

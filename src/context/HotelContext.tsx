@@ -24,6 +24,8 @@ interface HotelContextType {
   banquetHalls: BanquetHall[];
   banquetBookings: BanquetBooking[];
   addBanquetBooking: (booking: Omit<BanquetBooking, 'id'>) => void;
+  updateBanquetBooking: (bookingId: string, booking: Partial<BanquetBooking>) => void;
+  deleteBanquetBooking: (bookingId: string) => void;
   addBanquetHall: (hall: Omit<BanquetHall, 'id'>) => void;
   updateBanquetHall: (hallId: string, hall: Omit<BanquetHall, 'id'>) => void;
   deleteBanquetHall: (hallId: string) => void;
@@ -686,7 +688,7 @@ const DEMO_BANQUET_HALLS: BanquetHall[] = [
     id: '1', 
     name: 'Grand Ballroom', 
     capacity: 200, 
-    rate: 500, 
+    rate: 50000, 
     photos: [
       'https://images.pexels.com/photos/1065084/pexels-photo-1065084.jpeg',
       'https://images.pexels.com/photos/169198/pexels-photo-169198.jpeg',
@@ -699,7 +701,7 @@ const DEMO_BANQUET_HALLS: BanquetHall[] = [
     id: '2', 
     name: 'Garden Pavilion', 
     capacity: 100, 
-    rate: 300, 
+    rate: 30000, 
     photos: [
       'https://images.pexels.com/photos/1385472/pexels-photo-1385472.jpeg',
       'https://images.pexels.com/photos/2306281/pexels-photo-2306281.jpeg',
@@ -711,7 +713,7 @@ const DEMO_BANQUET_HALLS: BanquetHall[] = [
     id: '3',
     name: 'Crystal Conference Hall',
     capacity: 80,
-    rate: 400,
+    rate: 40000,
     photos: [
       'https://images.pexels.com/photos/2306281/pexels-photo-2306281.jpeg',
       'https://images.pexels.com/photos/1395967/pexels-photo-1395967.jpeg',
@@ -723,7 +725,7 @@ const DEMO_BANQUET_HALLS: BanquetHall[] = [
     id: '4',
     name: 'Rooftop Terrace',
     capacity: 150,
-    rate: 450,
+    rate: 45000,
     photos: [
       'https://images.pexels.com/photos/1024993/pexels-photo-1024993.jpeg',
       'https://images.pexels.com/photos/1385472/pexels-photo-1385472.jpeg',
@@ -735,7 +737,7 @@ const DEMO_BANQUET_HALLS: BanquetHall[] = [
     id: '5',
     name: 'Intimate Dining Room',
     capacity: 40,
-    rate: 200,
+    rate: 20000,
     photos: [
       'https://images.pexels.com/photos/169198/pexels-photo-169198.jpeg',
       'https://images.pexels.com/photos/2306281/pexels-photo-2306281.jpeg'
@@ -756,8 +758,8 @@ const DEMO_BANQUET_BOOKINGS: BanquetBooking[] = [
     startTime: '18:00',
     endTime: '23:00',
     attendees: 150,
-    totalAmount: 2500,
-    currency: 'USD',
+    totalAmount: 250000,
+    currency: 'INR',
     status: 'confirmed'
   },
   {
@@ -771,8 +773,8 @@ const DEMO_BANQUET_BOOKINGS: BanquetBooking[] = [
     startTime: '09:00',
     endTime: '17:00',
     attendees: 75,
-    totalAmount: 3200,
-    currency: 'USD',
+    totalAmount: 320000,
+    currency: 'INR',
     status: 'confirmed'
   }
 ];
@@ -882,9 +884,19 @@ export function HotelProvider({ children }: { children: ReactNode }) {
     const newBooking: BanquetBooking = {
       ...bookingData,
       id: Date.now().toString(),
-      currency: bookingData.currency || 'USD'
+      currency: bookingData.currency || 'INR'
     };
     setBanquetBookings(prev => [...prev, newBooking]);
+  };
+
+  const updateBanquetBooking = (bookingId: string, bookingData: Partial<BanquetBooking>) => {
+    setBanquetBookings(prev => prev.map(booking => 
+      booking.id === bookingId ? { ...booking, ...bookingData } : booking
+    ));
+  };
+
+  const deleteBanquetBooking = (bookingId: string) => {
+    setBanquetBookings(prev => prev.filter(booking => booking.id !== bookingId));
   };
 
   const addBanquetHall = (hallData: Omit<BanquetHall, 'id'>) => {
@@ -1008,6 +1020,8 @@ export function HotelProvider({ children }: { children: ReactNode }) {
       banquetHalls,
       banquetBookings,
       addBanquetBooking,
+      updateBanquetBooking,
+      deleteBanquetBooking,
       addBanquetHall,
       updateBanquetHall,
       deleteBanquetHall,

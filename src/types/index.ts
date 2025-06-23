@@ -133,20 +133,15 @@ export interface Guest {
   totalStays: number;
   lastStayDate?: string;
   preferredCurrency?: string;
-  dateOfBirth?: string;
+  title?: string; // Mr., Mrs., Dr., etc.
+  company?: string;
   nationality?: string;
-  passportNumber?: string;
   address?: string;
-  emergencyContact?: string;
-  dietaryRestrictions?: string[];
-  preferences?: string[];
-  loyaltyPoints?: number;
+  dateOfBirth?: string;
   vipStatus?: boolean;
   blacklisted?: boolean;
   notes?: string;
   // Additional guest details for enhanced display
-  company?: string;
-  title?: string; // Mr., Mrs., Dr., etc.
   specialRequests?: string[];
   roomPreferences?: {
     smokingRoom?: boolean;
@@ -166,6 +161,8 @@ export interface Guest {
     phone: string;
     email?: string;
   };
+  dietaryRestrictions?: string[];
+  loyaltyPoints?: number;
   // Enhanced ID Document Management
   idDocuments?: Array<{
     id: string;
@@ -241,7 +238,7 @@ export interface RoomCharge {
   amount: number;
   currency: string;
   date: string;
-  category: 'room' | 'restaurant' | 'spa' | 'other' | 'room-service' | 'minibar' | 'laundry' | 'telephone' | 'internet';
+  category: 'room' | 'restaurant' | 'spa' | 'other' | 'room-service' | 'minibar' | 'laundry' | 'telephone' | 'internet' | 'banquet';
   taxAmount?: number;
   discountAmount?: number;
   staffId?: string;
@@ -311,6 +308,11 @@ export interface BanquetBooking {
   actualEndTime?: string;
   eventNotes?: string;
   followUpRequired?: boolean;
+  invoiceGenerated?: boolean;
+  invoiceNumber?: string;
+  paymentStatus?: 'pending' | 'partial' | 'paid';
+  paymentMethod?: 'cash' | 'card' | 'bank-transfer' | 'room-charge';
+  paymentDate?: string;
 }
 
 export interface RestaurantTable {
