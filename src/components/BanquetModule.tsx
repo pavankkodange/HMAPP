@@ -134,7 +134,7 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
       addRoomCharge(formData.bookingId, {
         description: formData.description,
         amount: parseFloat(formData.amount),
-        currency: hotelSettings.baseCurrency,
+        currency: 'INR',
         date: new Date().toISOString().split('T')[0],
         category: 'other'
       });
@@ -210,7 +210,7 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Amount ({hotelSettings.baseCurrency})
+                Amount (INR)
               </label>
               <input
                 type="number"
@@ -252,8 +252,8 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
     ).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-2xl max-w-4xl w-full m-4 max-h-[90vh] overflow-y-auto">
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
           <div className="relative">
             {selectedHall.photos.length > 0 && (
               <img
@@ -267,7 +267,7 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
                 setShowHallDetails(false);
                 setSelectedHall(null);
               }}
-              className="absolute top-4 right-4 bg-white rounded-full p-2 shadow-lg hover:bg-gray-100"
+              className="absolute top-4 right-4 bg-white rounded-full p-2 shadow-lg hover:bg-gray-100 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -282,12 +282,12 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-3xl font-bold text-gray-900">{selectedHall.name}</h2>
-                <div className="flex items-center space-x-4 mt-2">
-                  <div className="flex items-center space-x-2">
-                    <Users className="w-5 h-5 text-gray-400" />
-                    <span className="text-gray-600">Up to {selectedHall.capacity} guests</span>
+                {selectedHall.location && (
+                  <div className="flex items-center space-x-2 mt-2">
+                    <MapPin className="w-4 h-4 text-gray-400" />
+                    <span className="text-gray-600">{selectedHall.location}</span>
                   </div>
-                </div>
+                )}
               </div>
               <div className="text-right">
                 <p className="text-3xl font-bold text-green-600">{formatCurrency(selectedHall.rate)}</p>
@@ -297,87 +297,103 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-4">Amenities & Features</h3>
-                <div className="grid grid-cols-1 gap-3">
-                  {selectedHall.amenities.map((amenity) => (
-                    <div key={amenity} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                      {getAmenityIcon(amenity)}
-                      <span className="text-gray-700 font-medium">{amenity}</span>
+                <h3 className="text-xl font-semibold text-gray-900 mb-4">Hall Details</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-3">
+                    <Users className="w-5 h-5 text-gray-400" />
+                    <span>Capacity: {selectedHall.capacity} guests</span>
+                  </div>
+                  {selectedHall.size && (
+                    <div className="flex items-center space-x-3">
+                      <Settings className="w-5 h-5 text-gray-400" />
+                      <span>Size: {selectedHall.size} sq ft</span>
                     </div>
-                  ))}
+                  )}
+                  {selectedHall.minimumHours && (
+                    <div className="flex items-center space-x-3">
+                      <Clock className="w-5 h-5 text-gray-400" />
+                      <span>Minimum booking: {selectedHall.minimumHours} hours</span>
+                    </div>
+                  )}
                 </div>
 
-                <div className="mt-6">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Perfect For</h4>
-                  <div className="flex flex-wrap gap-2">
-                    <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">Weddings</span>
-                    <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm">Corporate Events</span>
-                    <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">Conferences</span>
-                    <span className="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm">Celebrations</span>
-                  </div>
+                <h4 className="text-lg font-semibold text-gray-900 mt-6 mb-3">Amenities</h4>
+                <div className="flex flex-wrap gap-2">
+                  {selectedHall.amenities.map((amenity) => (
+                    <span key={amenity} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                      {amenity}
+                    </span>
+                  ))}
                 </div>
               </div>
 
               <div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-4">Upcoming Events</h3>
-                {upcomingEvents.length > 0 ? (
-                  <div className="space-y-3">
-                    {upcomingEvents.slice(0, 3).map((event) => (
-                      <div key={event.id} className="p-4 border border-gray-200 rounded-lg">
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-semibold text-gray-900">{event.eventName}</h4>
-                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(event.status)}`}>
-                            {event.status.replace('-', ' ')}
-                          </span>
+                {selectedHall.setupOptions && selectedHall.setupOptions.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-3">Setup Options</h4>
+                    <div className="space-y-2">
+                      {selectedHall.setupOptions.map((option, index) => (
+                        <div key={index} className="flex items-center space-x-2">
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          <span className="text-gray-700">{option}</span>
                         </div>
-                        <div className="text-sm text-gray-600 space-y-1">
-                          <div className="flex items-center space-x-2">
-                            <Calendar className="w-4 h-4" />
-                            <span>{new Date(event.date).toLocaleDateString()}</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Clock className="w-4 h-4" />
-                            <span>{event.startTime} - {event.endTime}</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Users className="w-4 h-4" />
-                            <span>{event.attendees} attendees</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    {upcomingEvents.length > 3 && (
-                      <p className="text-sm text-gray-500 text-center">
-                        +{upcomingEvents.length - 3} more events
-                      </p>
-                    )}
+                      ))}
+                    </div>
                   </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500">No upcoming events</p>
+                )}
+
+                {selectedHall.cateringOptions && selectedHall.cateringOptions.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-3">Catering Options</h4>
+                    <div className="space-y-2">
+                      {selectedHall.cateringOptions.map((option, index) => (
+                        <div key={index} className="flex items-center space-x-2">
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          <span className="text-gray-700">{option}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedHall.availableEquipment && selectedHall.availableEquipment.length > 0 && (
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900 mb-3">Available Equipment</h4>
+                    <div className="space-y-2">
+                      {selectedHall.availableEquipment.map((equipment, index) => (
+                        <div key={index} className="flex items-center space-x-2">
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          <span className="text-gray-700">{equipment}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="mt-8 pt-6 border-t border-gray-200 flex space-x-4">
-              <button
-                onClick={() => {
-                  setShowHallDetails(false);
-                  setShowBookingForm(true);
-                }}
-                className="flex-1 bg-indigo-600 text-white py-4 px-6 rounded-lg hover:bg-indigo-700 font-semibold text-lg transition-colors"
-              >
-                Book This Hall
-              </button>
-              <button
-                onClick={() => setShowChargeForm(true)}
-                className="px-6 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold transition-colors"
-              >
-                Post Charge to Room
-              </button>
-            </div>
+            {selectedHall.photos.length > 1 && (
+              <div className="mt-8">
+                <h4 className="text-lg font-semibold text-gray-900 mb-4">Photo Gallery</h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {selectedHall.photos.slice(1).map((photo, index) => (
+                    <img
+                      key={index}
+                      src={photo}
+                      alt={`${selectedHall.name} ${index + 2}`}
+                      className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedHall.cancellationPolicy && (
+              <div className="mt-8 p-4 bg-gray-50 rounded-lg">
+                <h4 className="text-lg font-semibold text-gray-900 mb-2">Cancellation Policy</h4>
+                <p className="text-gray-700">{selectedHall.cancellationPolicy}</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -425,7 +441,7 @@ export function BanquetModule({ filters }: BanquetModuleProps) {
           endTime: formData.endTime,
           attendees: parseInt(formData.attendees),
           totalAmount: hall.rate * hours,
-          currency: hotelSettings.baseCurrency,
+          currency: 'INR',
           specialRequirements: formData.specialRequirements,
           status: 'confirmed'
         });
