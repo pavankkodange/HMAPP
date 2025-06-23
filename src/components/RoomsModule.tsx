@@ -68,6 +68,7 @@ export function RoomsModule({ filters, onModuleChange }: RoomsModuleProps) {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [dateFilter, setDateFilter] = useState<string>('');
   const [showBillGenerator, setShowBillGenerator] = useState(false);
+  const [selectedBookingId, setSelectedBookingId] = useState('');
 
   // Apply filters from dashboard navigation
   useEffect(() => {
@@ -169,7 +170,7 @@ export function RoomsModule({ filters, onModuleChange }: RoomsModuleProps) {
   const BookingForm = () => {
     const [formData, setFormData] = useState({
       guestId: '',
-      roomId: '',
+      roomId: selectedRoom ? selectedRoom.id : '',
       checkIn: '',
       checkOut: '',
       adults: 1,
@@ -211,6 +212,7 @@ export function RoomsModule({ filters, onModuleChange }: RoomsModuleProps) {
       });
       
       setShowBookingForm(false);
+      setSelectedRoom(null);
     };
 
     const availableRooms = rooms.filter(room => room.status === 'clean');
@@ -222,7 +224,10 @@ export function RoomsModule({ filters, onModuleChange }: RoomsModuleProps) {
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-gray-900">New Reservation</h3>
               <button
-                onClick={() => setShowBookingForm(false)}
+                onClick={() => {
+                  setShowBookingForm(false);
+                  setSelectedRoom(null);
+                }}
                 className="p-2 hover:bg-gray-100 rounded-lg"
               >
                 <X className="w-5 h-5" />
@@ -369,22 +374,40 @@ export function RoomsModule({ filters, onModuleChange }: RoomsModuleProps) {
               <div className="bg-gray-50 rounded-xl p-6">
                 <h4 className="text-lg font-semibold text-gray-900 mb-4">Room Selection</h4>
                 <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Select Room</label>
-                    <select
-                      value={formData.roomId}
-                      onChange={(e) => setFormData({ ...formData, roomId: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                      required
-                    >
-                      <option value="">Select a room</option>
-                      {availableRooms.map((room) => (
-                        <option key={room.id} value={room.id}>
-                          Room {room.number} - {room.type} ({formatCurrency(room.rate)}/night)
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  {selectedRoom ? (
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-blue-800">Selected Room:</p>
+                          <p className="text-lg font-semibold text-blue-900">Room {selectedRoom.number} - {selectedRoom.type} ({formatCurrency(selectedRoom.rate)}/night)</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRoom(null)}
+                          className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-full"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Select Room</label>
+                      <select
+                        value={formData.roomId}
+                        onChange={(e) => setFormData({ ...formData, roomId: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                        required
+                      >
+                        <option value="">Select a room</option>
+                        {availableRooms.map((room) => (
+                          <option key={room.id} value={room.id}>
+                            Room {room.number} - {room.type} ({formatCurrency(room.rate)}/night)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -472,7 +495,10 @@ export function RoomsModule({ filters, onModuleChange }: RoomsModuleProps) {
               <div className="flex space-x-4 pt-6 border-t border-gray-200">
                 <button
                   type="button"
-                  onClick={() => setShowBookingForm(false)}
+                  onClick={() => {
+                    setShowBookingForm(false);
+                    setSelectedRoom(null);
+                  }}
                   className="flex-1 px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition-colors"
                 >
                   Cancel
@@ -492,7 +518,6 @@ export function RoomsModule({ filters, onModuleChange }: RoomsModuleProps) {
   };
 
   const CheckInForm = () => {
-    const [selectedBookingId, setSelectedBookingId] = useState('');
     const [paymentMethod, setPaymentMethod] = useState('card');
     const [depositAmount, setDepositAmount] = useState('0');
     
@@ -522,6 +547,7 @@ export function RoomsModule({ filters, onModuleChange }: RoomsModuleProps) {
       }
       
       setShowCheckInForm(false);
+      setSelectedBookingId('');
     };
 
     return (
@@ -609,8 +635,6 @@ export function RoomsModule({ filters, onModuleChange }: RoomsModuleProps) {
   };
 
   const CheckOutForm = () => {
-    const [selectedBookingId, setSelectedBookingId] = useState('');
-    
     const activeBookings = bookings.filter(b => b.status === 'checked-in');
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -747,7 +771,10 @@ export function RoomsModule({ filters, onModuleChange }: RoomsModuleProps) {
             <span>Check-in</span>
           </button>
           <button
-            onClick={() => setShowBookingForm(true)}
+            onClick={() => {
+              setSelectedRoom(null);
+              setShowBookingForm(true);
+            }}
             className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
           >
             <Plus className="w-4 h-4" />
@@ -897,7 +924,10 @@ export function RoomsModule({ filters, onModuleChange }: RoomsModuleProps) {
                 <div className="flex space-x-2">
                   {room.status === 'clean' && (
                     <button
-                      onClick={() => setShowBookingForm(true)}
+                      onClick={() => {
+                        setSelectedRoom(room);
+                        setShowBookingForm(true);
+                      }}
                       className="flex-1 flex items-center justify-center space-x-2 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
                     >
                       <Calendar className="w-4 h-4" />
